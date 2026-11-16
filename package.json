@@ -1,0 +1,19 @@
+{
+  "name": "kitahama-train-tracker",
+  "version": "1.0.0",
+  "description": "Osaka Metro Sakaisuji Line Kitahama Station Train Tracker for Cloudflare Pages",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test test/*.test.js"
+  },
+  "keywords": [
+    "osaka-metro",
+    "sakaisuji",
+    "kitahama",
+    "cloudflare-pages"
+  ],
+  "author": "Y-Taichi",
+  "license": "MIT"
+}

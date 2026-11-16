@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>北浜駅 列車位置モニター</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <div class="station-badge">
+        <span class="line-dot"></span>
+        <span class="station-code">K14</span>
+        <h1 class="station-name">北浜駅</h1>
+      </div>
+      <div class="status-bar">
+        <span id="update-timer" class="timer-text">更新待機中</span>
+        <button id="refresh-btn" class="refresh-btn" aria-label="手動更新">更新</button>
+      </div>
+    </header>
+
+    <!-- 方面選択（タブ） -->
+    <nav class="direction-tabs" role="tablist">
+      <button class="tab-btn active" data-dir="A" role="tab" aria-selected="true">
+        天神橋筋六丁目・阪急線 方面
+      </button>
+      <button class="tab-btn" data-dir="B" role="tab" aria-selected="false">
+        天下茶屋 方面
+      </button>
+    </nav>
+
+    <!-- メイン列車一覧 -->
+    <main id="train-list" class="train-list">
+      <div class="loading-state">列車情報を取得しています...</div>
+    </main>
+
+    <!-- フッター -->
+    <footer class="footer">
+      <span id="last-updated" class="last-updated">未取得</span>
+      <span class="source-info">Osaka Metro 堺筋線 リアルタイムデータ</span>
+    </footer>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
