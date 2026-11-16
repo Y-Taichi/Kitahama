@@ -1,39 +1,49 @@
-# Kitahama - 北浜駅 列車位置モニター
+# Kitahama - 北浜駅 リアルタイム列車走行位置モニター
 
-Osaka Metro 堺筋線 **北浜駅（K14）** を利用する乗客のための、通信量最小・超軽量なリアルタイム列車接近表示 Web アプリケーションです。  
+Osaka Metro 堺筋線 **北浜駅（K14）** を利用する乗客のための、**1秒間隔更新・通信量最小・イラスト対応**のリアルタイム路線マップ Web アプリケーションです。  
 Cloudflare Pages（Functions + 静的ファイル配信）に完全対応しています。
 
 ---
 
-## 🌟 特徴
+## 🌟 主な機能と特徴
 
-- **通信量最小化**:
-  - Osaka Metro 公式ページ（数MBのバンドル・画像・SVG等）とは異なり、エッジ関数（Cloudflare Pages Functions）で北浜駅に必要なデータのみを抽出・加工。
-  - ブラウザとの通信量は **1回あたりわずか約 200〜300 バイト**。
-- **ミニマル & 高視認性 UI**:
-  - 発車標（電光掲示板）スタイルのダークモード基調。
-  - 「先発」「次発」「次々発」、行先（天六・北千里・高槻市・京都河原町・天下茶屋など）、現在位置（「堺筋本町に停車中」「南森町を出発」など）、編成番号を即座に把握可能。
-- **上り・下りワンタップ切替**:
-  - 天神橋筋六丁目・阪急線方面（上り / A）
-  - 天下茶屋方面（下り / B）
-- **安定性と省電力**:
-  - 外部フレームワーク（React/Vue等）依存ゼロの Pure HTML/CSS/Vanilla JS。
-  - 10秒ごとの自動更新（秒数カウントダウン表示付き）。
-  - Page Visibility API を搭載し、バックグラウンド時は自動でポーリングを一時停止して通信と端末のバッテリー消費を抑制。
+### 1. 1秒ごとのリアルタイム更新 & 通信量最小化
+- ポーリング間隔を **1秒** に設定。列車の走行や到着がほぼリアルタイムに画面へ反映されます。
+- Osaka Metro 公式ページ（数MBの重いバンドルやSVG画像群）とは異なり、エッジ関数（Cloudflare Pages Functions）で必要なデータのみを軽量化して配信（約 200〜400 バイト/回）。
+- **Page Visibility API** により、スマホの画面オフやタブ非アクティブ時は自動でポーリングを停止し、端末のバッテリーと通信量を保護します。
+
+### 2. リスト形式を脱却した「路線図型ビジュアルトラッカー」
+- 長堀橋駅 $\to$ `[出発直後]` $\to$ `[走行中]` $\to$ `[停車寸前]` $\to$ 堺筋本町駅 $\to$ ... のように、駅と駅間の走行スロットが1本のタイムラインとして直感的に表示されます。
+- **停車中の列車は駅の中に表示**され、**駅間を走る列車は「出発直後」「走行中」「停車寸前」のスロットにプロット**されます。
+- **北浜駅（K14）** は「★ 当駅」としてゴールドの枠線と発光エフェクトでハイライトされます。
+
+### 3. 電車イラスト & 車番・所属判別
+- かわいい地下鉄電車イラスト（SVG）を自作内蔵。
+- 車番（例: `66601`, `1303`, `8332` 等）から所属会社・形式を自動判別し、色分け表示します：
+  - **Osaka Metro 66系**: 堺筋線ブラウン（`#81472C`）帯
+  - **阪急電鉄 直通車（1300系, 5300系, 7300系, 8300系 等）**: 伝統の阪急マルーン（`#5C061F`）
+- 列車のバッジをタップ／クリックすると、号車ごとの混雑度や車内温度などの詳細モーダルが開きます。
+
+### 4. 運行情報バナー
+- 堺筋線の運行ステータス（平常運転 / ダイヤ乱れ等）をヘッダー直下にリアルタイム表示。
 
 ---
 
-## 🏗 システム構成
+## 🔍 APIから取得可能な情報一覧
 
-```mermaid
-flowchart LR
-    Browser["ブラウザ (PC / スマホ)\npublic/"]
-    CFPages["Cloudflare Pages Functions\n/api/trains"]
-    MetroAPI["Osaka Metro API\n(/trainlocation)"]
+Osaka Metro の列車位置・運行情報 API から取得可能なデータ一覧です：
 
-    Browser -->|"10秒間隔で取得\n(約250 Byte)"| CFPages
-    CFPages -->|"エッジキャッシュ (5秒)\nCORS回避 & 北浜接近順ソート"| MetroAPI
-```
+| 項目 | フィールド名 / 出所 | 内容・取得可否 |
+| :--- | :--- | :--- |
+| **現在位置** | `fromStationCode`, `toStationCode`, `progress` | 駅停車中 (`progress: 0`)、駅間走行中 (`progress: 1.0`)、出発直後/次駅接近中 (`progress: 2.0`) |
+| **行先** | `terminalStationCode` | 天下茶屋(`K20`)、天六(`K11`)に加え、阪急線直通先（高槻市`HK72`、北千里`HK95`、京都河原町`HK86`、茨木市`HK69`、正雀`HK66` など） |
+| **編成・車番** | `vehicleNumber` | 各編成の先頭車両番号（例: `66601`〜`66617`、`1300`番台、`7300`番台など） |
+| **車両所属・形式** | `vehicleNumber` から判別 | Osaka Metro 自社車両（66系）か阪急電鉄乗り入れ車両（1300系等）か |
+| **号車別混雑度** | `trainCarCongestionList` | カンマ区切りの8両編成各号車の混雑レベル（1:空席あり 〜 5:大変混雑）※対応編成・時間帯 |
+| **号車別車内温度** | `trainCarTemperatureList` | カンマ区切りの8両編成各号車の実測・設定温度（℃）※対応編成 |
+| **遅れ・遅延情報** | `sameAs` | ダイヤ乱れ時の遅延時分などの情報 |
+| **路線運行情報** | `/app/api/v1/operationinfo` | 堺筋線全体の運行状況（「平常運転」や遅延・見合わせの案内文） |
+| **バリアフリー・女性専用車** | 静的設定ファイル | 低床車両情報（`nonLowFloorTrain.json`）、女性専用車両位置（`trainCarDetail.json`） |
 
 ---
 
@@ -43,21 +53,22 @@ flowchart LR
 Kitahama/
 ├── functions/
 │   └── api/
-│       └── trains.js       # Cloudflare Pages Functions (APIプロキシ & 北浜駅データ加工)
+│       └── trains.js       # Cloudflare Pages Functions (1秒エッジキャッシュ・API並行取得)
 ├── lib/
-│   ├── stations.js         # 堺筋線・阪急線の駅名マッピング
-│   └── train-tracker.js    # 北浜駅基準の列車追跡・距離計算・ソートロジック
+│   ├── stations.js         # 堺筋線・阪急線の全駅マッピング
+│   └── train-tracker.js    # 全列車スロット位置計算・車番形式判別・混雑温度パース
 ├── public/
-│   ├── index.html          # ミニマル発車標UI
-│   ├── app.js              # フロントエンドスクリプト
-│   └── style.css           # スタイルシート (ダークモード基調)
+│   ├── index.html          # 路線図トラックUI & 発車案内
+│   ├── app.js              # 1秒ポーリング & SVGイラスト生成 & トラック描画
+│   └── style.css           # ダークモード・トラックタイムラインCSS
 ├── test/
-│   ├── train-tracker.test.js      # ロジックの網羅的単体テスト
-│   ├── edge-cases.test.js         # 異常値・フォールバック検証
-│   ├── live-api.test.js           # 実際のOsaka Metro API疎通テスト
-│   ├── functions-handler.test.js  # Pages Functions ハンドラーテスト
-│   └── server-integration.test.js # ローカルHTTPサーバー統合テスト
-├── server.js               # ローカル開発・検証用 HTTP サーバー
+│   ├── track-map.test.js          # スロット判定・形式判別テスト
+│   ├── train-tracker.test.js      # 単体テスト
+│   ├── edge-cases.test.js         # 異常値テスト
+│   ├── live-api.test.js           # 実際のOsaka Metro API通信テスト
+│   ├── functions-handler.test.js  # Pages Functions テスト
+│   └── server-integration.test.js # ローカルHTTPサーバーテスト
+├── server.js               # ローカル動作確認用サーバー
 ├── package.json
 └── wrangler.toml           # Cloudflare Pages 設定
 ```
@@ -66,38 +77,15 @@ Kitahama/
 
 ## 🚀 使い方
 
-### 1. ローカル開発サーバーの起動
-
-外部パッケージのインストール不要で、標準の Node.js (v18+) だけで動作します。
-
+### ローカル開発サーバー
 ```bash
 npm start
 ```
 ブラウザで `http://localhost:3000` を開きます。
 
-### 2. テストの実行
-
-Node.js 組み込みテストランナーによる全13件のテスト（実API通信・エッジケース・統合テスト含む）を実行します。
-
+### テスト実行
 ```bash
 npm test
-```
-
----
-
-## ☁️ Cloudflare Pages へのデプロイ手順
-
-### 方法A: GitHub 連携 (推奨)
-1. GitHub にプッシュした本リポジトリを Cloudflare ダッシュボードで選択。
-2. 設定:
-   - **Framework preset**: None
-   - **Build command**: (空欄のままでOK)
-   - **Build output directory**: `public`
-3. 「Save and Deploy」をクリックするだけでデプロイ完了。
-
-### 方法B: Wrangler CLI による直接デプロイ
-```bash
-npx wrangler pages deploy public
 ```
 
 ---

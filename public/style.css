@@ -1,14 +1,22 @@
 :root {
-  --bg-color: #0d1117;
-  --card-bg: #161b22;
-  --card-border: #30363d;
+  --bg-color: #0b0e14;
+  --card-bg: #151922;
+  --card-border: #282f3d;
+  --card-hover: #1e2533;
   --text-main: #f0f6fc;
   --text-sub: #8b949e;
-  --text-dim: #6e7681;
-  --line-sakaisuji: #81472C; /* 堺筋線 ブラウン */
-  --accent-gold: #e3b341;
+  --text-dim: #5c6370;
+
+  --line-sakaisuji: #81472C;  /* 堺筋線 ブラウン */
+  --hankyu-maroon: #5C061F;   /* 阪急 マルーン */
+  --kitahama-gold: #f0883e;
+  --kitahama-glow: rgba(240, 136, 62, 0.25);
+
   --accent-green: #3fb950;
-  --accent-cyan: #58a6ff;
+  --accent-blue: #58a6ff;
+  --accent-yellow: #d29922;
+  --accent-red: #f85149;
+
   --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Kaku Gothic ProN", "BIZ UDPGothic", Meiryo, sans-serif;
 }
 
@@ -22,19 +30,19 @@ body {
   background-color: var(--bg-color);
   color: var(--text-main);
   font-family: var(--font-family);
-  line-height: 1.5;
+  line-height: 1.4;
   min-height: 100vh;
   display: flex;
   justify-content: center;
-  padding: 16px 12px;
+  padding: 12px 10px;
 }
 
 .container {
   width: 100%;
-  max-width: 480px;
+  max-width: 520px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
 }
 
 /* ヘッダー */
@@ -42,7 +50,7 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding-bottom: 8px;
+  padding-bottom: 6px;
   border-bottom: 2px solid var(--line-sakaisuji);
 }
 
@@ -53,57 +61,95 @@ body {
 }
 
 .line-dot {
-  width: 12px;
-  height: 12px;
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
   background-color: var(--line-sakaisuji);
-  box-shadow: 0 0 6px rgba(129, 71, 44, 0.8);
+  box-shadow: 0 0 8px rgba(129, 71, 44, 0.9);
 }
 
 .station-code {
   font-size: 0.85rem;
-  font-weight: 700;
+  font-weight: 800;
   background-color: var(--line-sakaisuji);
   color: #fff;
-  padding: 2px 6px;
+  padding: 2px 7px;
   border-radius: 4px;
   letter-spacing: 0.05em;
 }
 
 .station-name {
-  font-size: 1.35rem;
-  font-weight: 700;
+  font-size: 1.4rem;
+  font-weight: 800;
   letter-spacing: 0.05em;
 }
 
-.status-bar {
+/* LIVE インジケーター (1秒更新) */
+.live-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background-color: rgba(63, 185, 80, 0.15);
+  border: 1px solid rgba(63, 185, 80, 0.4);
+  padding: 3px 8px;
+  border-radius: 12px;
+}
+
+.pulse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--accent-green);
+  box-shadow: 0 0 6px var(--accent-green);
+  animation: live-blink 1s infinite alternate;
+}
+
+@keyframes live-blink {
+  from { opacity: 0.3; transform: scale(0.8); }
+  to { opacity: 1; transform: scale(1.1); }
+}
+
+.live-text {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--accent-green);
+  letter-spacing: 0.05em;
+}
+
+/* 運行情報バナー */
+.operation-banner {
   display: flex;
   align-items: center;
   gap: 8px;
-}
-
-.timer-text {
-  font-size: 0.75rem;
-  color: var(--text-sub);
-}
-
-.refresh-btn {
-  background-color: transparent;
-  color: var(--text-sub);
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 0.78rem;
   border: 1px solid var(--card-border);
-  padding: 3px 8px;
-  border-radius: 4px;
-  font-size: 0.75rem;
-  cursor: pointer;
-  transition: all 0.2s ease;
 }
 
-.refresh-btn:hover {
-  color: var(--text-main);
-  border-color: var(--text-sub);
+.operation-banner.normal {
+  background-color: rgba(63, 185, 80, 0.08);
+  border-color: rgba(63, 185, 80, 0.25);
 }
 
-/* タブ */
+.operation-banner.warning {
+  background-color: rgba(248, 81, 73, 0.15);
+  border-color: var(--accent-red);
+}
+
+.op-badge {
+  font-weight: 700;
+  font-size: 0.7rem;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.op-status {
+  font-weight: 600;
+}
+
+/* 方面タブ */
 .direction-tabs {
   display: flex;
   background-color: var(--card-bg);
@@ -118,9 +164,9 @@ body {
   background: transparent;
   border: none;
   color: var(--text-sub);
-  font-size: 0.82rem;
-  font-weight: 600;
-  padding: 8px 4px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 9px 4px;
   border-radius: 4px;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -130,151 +176,442 @@ body {
 .tab-btn.active {
   background-color: var(--line-sakaisuji);
   color: #fff;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
 }
 
-/* 列車リスト */
-.train-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+/* タイトル & 凡例 */
+.section-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-sub);
+  letter-spacing: 0.05em;
+  margin-bottom: 6px;
 }
 
-.train-card {
-  background-color: var(--card-bg);
-  border: 1px solid var(--card-border);
-  border-radius: 8px;
-  padding: 12px 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  position: relative;
-  overflow: hidden;
-  transition: border-color 0.2s ease;
-}
-
-.train-card.first {
-  border-left: 4px solid var(--accent-gold);
-}
-
-.train-card.at-station {
-  border-left: 4px solid var(--accent-green);
-  background-color: #122117;
-}
-
-.card-top {
+.track-header {
   display: flex;
   justify-content: space-between;
-  align-items: baseline;
+  align-items: center;
 }
 
-.order-badge {
-  font-size: 0.75rem;
-  font-weight: 700;
-  color: var(--accent-gold);
-  letter-spacing: 0.05em;
+.track-legend {
+  display: flex;
+  gap: 8px;
+  font-size: 0.72rem;
+  color: var(--text-dim);
 }
 
-.train-card.at-station .order-badge {
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.train-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+}
+
+.train-dot.metro { background-color: var(--line-sakaisuji); }
+.train-dot.hankyu { background-color: var(--hankyu-maroon); }
+
+/* サマリーカード (北浜接近列車) */
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px;
+}
+
+.summary-card {
+  background-color: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border-left: 3px solid var(--accent-blue);
+}
+
+.summary-card.first {
+  border-left-color: var(--kitahama-gold);
+}
+
+.summary-card.at-station {
+  border-left-color: var(--accent-green);
+  background-color: #0f1c14;
+}
+
+.sum-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.sum-order {
+  font-size: 0.7rem;
+  font-weight: 800;
+  color: var(--kitahama-gold);
+}
+
+.summary-card.at-station .sum-order {
   color: var(--accent-green);
 }
 
-.vehicle-info {
-  font-size: 0.72rem;
+.sum-car {
+  font-size: 0.68rem;
   color: var(--text-dim);
   font-family: monospace;
 }
 
-.card-middle {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-}
-
-.dest-group {
-  display: flex;
-  align-items: baseline;
-  gap: 4px;
-}
-
-.dest-name {
-  font-size: 1.45rem;
+.sum-dest {
+  font-size: 1.15rem;
   font-weight: 800;
-  letter-spacing: 0.04em;
   color: var(--text-main);
 }
 
-.dest-label {
-  font-size: 0.85rem;
-  color: var(--text-sub);
+.sum-status {
+  font-size: 0.72rem;
+  color: var(--accent-blue);
+  font-weight: 600;
 }
 
-.distance-badge {
-  font-size: 0.85rem;
+/* ============================================================
+   路線トラック・全列車走行位置マップ
+   長堀橋 => 出発直後 => 走行中 => 停車寸前 => 堺筋本町 => ...
+   ============================================================ */
+.route-track {
+  background-color: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 駅行 (Station Row) */
+.track-node-station {
+  display: flex;
+  align-items: center;
+  background-color: #1a202c;
+  border: 1px solid #333d4e;
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin: 2px 0;
+  min-height: 48px;
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+/* 北浜駅ハイライト */
+.track-node-station.is-kitahama {
+  background: linear-gradient(90deg, #271d17, #1e2433);
+  border: 2px solid var(--kitahama-gold);
+  box-shadow: 0 0 10px var(--kitahama-glow);
+}
+
+.station-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 140px;
+  flex-shrink: 0;
+}
+
+.st-num-badge {
+  font-size: 0.72rem;
+  font-weight: 800;
+  background-color: var(--line-sakaisuji);
+  color: #fff;
+  padding: 2px 5px;
+  border-radius: 3px;
+  letter-spacing: 0.05em;
+}
+
+.is-kitahama .st-num-badge {
+  background-color: var(--kitahama-gold);
+}
+
+.st-title-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.st-name-text {
+  font-size: 0.95rem;
   font-weight: 700;
-  padding: 2px 8px;
+  white-space: nowrap;
+}
+
+.is-kitahama .st-name-text {
+  color: #ffb77d;
+  font-weight: 800;
+}
+
+.st-kitahama-tag {
+  font-size: 0.65rem;
+  font-weight: 800;
+  color: var(--kitahama-gold);
+}
+
+/* 駅に停車中の列車スロット */
+.station-train-slot {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 6px;
+  padding-left: 10px;
+}
+
+/* 駅間トラック (Between Section) */
+.track-node-between {
+  display: flex;
+  flex-direction: column;
+  padding: 2px 0 2px 24px;
+  position: relative;
+  border-left: 3px solid #2d3648;
+  margin-left: 16px;
+}
+
+.track-node-between.has-train {
+  border-left-color: var(--accent-blue);
+}
+
+/* 3段階のスロット: 出発直後 / 走行中 / 停車寸前 */
+.between-step {
+  display: flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 3px 6px;
   border-radius: 4px;
-  background-color: rgba(88, 166, 255, 0.15);
-  color: var(--accent-cyan);
+  position: relative;
 }
 
-.distance-badge.urgent {
-  background-color: rgba(227, 179, 65, 0.2);
-  color: var(--accent-gold);
+.between-step::before {
+  content: "";
+  position: absolute;
+  left: -28px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #2d3648;
 }
 
-.distance-badge.here {
-  background-color: rgba(63, 185, 80, 0.25);
-  color: var(--accent-green);
-  animation: pulse 1.8s infinite;
+.between-step.has-train::before {
+  background-color: var(--accent-blue);
+  box-shadow: 0 0 6px var(--accent-blue);
 }
 
-@keyframes pulse {
-  0% { opacity: 0.75; }
-  50% { opacity: 1; }
-  100% { opacity: 0.75; }
+.step-label {
+  font-size: 0.68rem;
+  color: var(--text-dim);
+  width: 60px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 3px;
 }
 
-.card-bottom {
+.step-train-slot {
+  flex: 1;
   display: flex;
   align-items: center;
   gap: 6px;
+}
+
+/* ============================================================
+   列車イラスト & バッジ
+   ============================================================ */
+.train-illustration-badge {
+  display: inline-flex;
+  align-items: center;
+  background-color: #121824;
+  border: 1px solid #3e4a61;
+  border-radius: 6px;
+  padding: 3px 8px 3px 4px;
+  gap: 6px;
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+  animation: train-slide-in 0.3s ease;
+}
+
+.train-illustration-badge:hover {
+  transform: translateY(-1px);
+  border-color: var(--accent-blue);
+}
+
+.train-illustration-badge.metro {
+  border-left: 4px solid var(--line-sakaisuji);
+}
+
+.train-illustration-badge.hankyu {
+  border-left: 4px solid var(--hankyu-maroon);
+}
+
+.train-svg-icon {
+  width: 28px;
+  height: 22px;
+  flex-shrink: 0;
+}
+
+.train-info-stack {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+
+.train-badge-top {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.train-car-no {
+  font-size: 0.72rem;
+  font-weight: 800;
+  font-family: monospace;
+  color: #fff;
+}
+
+.train-type-pill {
+  font-size: 0.62rem;
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-weight: 700;
+}
+
+.metro .train-type-pill {
+  background-color: rgba(129, 71, 44, 0.4);
+  color: #ffbe98;
+}
+
+.hankyu .train-type-pill {
+  background-color: rgba(92, 6, 31, 0.5);
+  color: #ff9cb5;
+}
+
+.train-badge-dest {
   font-size: 0.82rem;
-  color: var(--text-sub);
-  padding-top: 4px;
-  border-top: 1px dashed rgba(255, 255, 255, 0.08);
+  font-weight: 800;
+  color: #fff;
 }
 
-.loc-icon {
-  font-size: 0.75rem;
+.train-badge-dest small {
+  font-size: 0.68rem;
+  font-weight: normal;
+  color: var(--text-sub);
 }
 
-/* メッセージ表示 */
-.loading-state,
-.empty-state,
-.error-state {
-  text-align: center;
-  padding: 36px 16px;
-  color: var(--text-sub);
+@keyframes train-slide-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* モーダル */
+.detail-modal {
+  margin: auto;
+  background: transparent;
+  border: none;
+  max-width: 90vw;
+  width: 360px;
+}
+
+.detail-modal::backdrop {
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(2px);
+}
+
+.modal-box {
   background-color: var(--card-bg);
+  border: 1px solid var(--card-border);
   border-radius: 8px;
-  border: 1px dashed var(--card-border);
-  font-size: 0.9rem;
+  padding: 16px;
+  color: var(--text-main);
 }
 
-.error-state {
-  color: #ff7b72;
-  border-color: rgba(255, 123, 114, 0.3);
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--card-border);
+  padding-bottom: 8px;
+  margin-bottom: 12px;
 }
 
-/* フッター */
+.modal-close {
+  background: transparent;
+  border: none;
+  color: var(--text-sub);
+  font-size: 1.5rem;
+  cursor: pointer;
+}
+
+.modal-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 0;
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.08);
+  font-size: 0.85rem;
+}
+
+.modal-label {
+  color: var(--text-sub);
+}
+
+.modal-val {
+  font-weight: 700;
+}
+
+.car-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 3px;
+  margin-top: 8px;
+}
+
+.car-cell {
+  background-color: #212836;
+  border-radius: 3px;
+  padding: 4px 2px;
+  text-align: center;
+  font-size: 0.65rem;
+}
+
+.car-num {
+  font-weight: 800;
+  color: var(--text-sub);
+}
+
+.car-temp {
+  color: #58a6ff;
+  font-family: monospace;
+}
+
+/* メッセージ・フッター */
+.loading-state,
+.empty-state {
+  text-align: center;
+  padding: 30px;
+  color: var(--text-sub);
+  font-size: 0.85rem;
+}
+
 .footer {
   margin-top: auto;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 4px;
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   color: var(--text-dim);
-  padding-top: 8px;
+  padding-top: 10px;
+}
+
+.footer-meta {
+  display: flex;
+  gap: 12px;
 }

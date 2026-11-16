@@ -1,6 +1,8 @@
-import { filterAndSortKitahamaTrains } from "../../lib/train-tracker.js";
+import { processAllSakaisujiTrains, filterAndSortKitahamaTrains } from "../../lib/train-tracker.js";
+import { SAKAISUJI_ORDERED_STATIONS } from "../../lib/stations.js";
 
 const OSAKA_METRO_API_URL = "https://api.mobility-operation-info.emetro-app.osakametro.co.jp/app/api/v1/trainlocation?route_code=6";
+const OPERATION_INFO_URL = "https://api.mobility-operation-info.emetro-app.osakametro.co.jp/app/api/v1/operationinfo?route_code=6";
 const API_KEY = "XSGUG4p5Ya5vQCehV3zZjaDheZAQMpqP9paVan8W";
 
 /**
@@ -8,28 +10,42 @@ const API_KEY = "XSGUG4p5Ya5vQCehV3zZjaDheZAQMpqP9paVan8W";
  */
 export async function onRequestGet(context) {
   const url = new URL(context.request.url);
-  const direction = url.searchParams.get("dir") === "B" ? "B" : "A"; // デフォルトは "A" (天六・阪急方面)
+  const direction = url.searchParams.get("dir") === "B" ? "B" : "A"; // "A": 天六・阪急方面 (上り), "B": 天下茶屋方面 (下り)
 
   try {
-    const apiRes = await fetch(OSAKA_METRO_API_URL, {
-      method: "GET",
-      headers: {
-        "X-Api-Key": API_KEY,
-        "Accept-Language": "ja",
-        "User-Agent": "KitahamaTrainTracker/1.0"
-      },
-      // Cloudflare Edge Cache: 5秒間キャッシュして上流APIへの過負荷を防ぐ
-      cf: {
-        cacheTtl: 5,
-        cacheEverything: true
-      }
-    });
+    // 列車位置と運行情報を並行取得
+    const [trainRes, opRes] = await Promise.all([
+      fetch(OSAKA_METRO_API_URL, {
+        method: "GET",
+        headers: {
+          "X-Api-Key": API_KEY,
+          "Accept-Language": "ja",
+          "User-Agent": "KitahamaTrainTracker/1.0"
+        },
+        // 1秒更新のためエッジキャッシュを1秒に設定
+        cf: {
+          cacheTtl: 1,
+          cacheEverything: true
+        }
+      }),
+      fetch(OPERATION_INFO_URL, {
+        method: "GET",
+        headers: {
+          "X-Api-Key": API_KEY,
+          "Accept-Language": "ja"
+        },
+        cf: {
+          cacheTtl: 5,
+          cacheEverything: true
+        }
+      }).catch(() => null)
+    ]);
 
-    if (!apiRes.ok) {
+    if (!trainRes.ok) {
       return new Response(
         JSON.stringify({
           error: "Failed to fetch from Osaka Metro API",
-          status: apiRes.status,
+          status: trainRes.status,
           updatedAt: new Date().toISOString()
         }),
         {
@@ -42,20 +58,48 @@ export async function onRequestGet(context) {
       );
     }
 
-    const rawData = await apiRes.json();
+    const rawData = await trainRes.json();
     const rawList = rawData.trainLocationList || [];
 
-    // 北浜駅向けの接近列車一覧を計算
-    const trains = filterAndSortKitahamaTrains(rawList, direction);
+    // 運行情報テキスト
+    let operationStatus = "平常運転";
+    let operationMessage = "";
+    if (opRes && opRes.ok) {
+      try {
+        const opData = await opRes.json();
+        if (opData.operationInfoList && opData.operationInfoList.length > 0) {
+          operationStatus = "ダイヤ乱れ・運行情報あり";
+          operationMessage = opData.operationInfoList.map(item => item.informationText || "").join("\n");
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
 
-    // 最小限のペイロードを生成 (約 300 バイト)
+    // 全列車データを処理（トラック・マップ表示用）
+    const allTrains = processAllSakaisujiTrains(rawList, direction);
+
+    // 北浜駅接近列車リスト（先発・次発・次々発）
+    const approachingTrains = filterAndSortKitahamaTrains(rawList, direction);
+
+    // 駅リスト（上りなら天下茶屋 K20 -> 天神橋筋六丁目 K11、下りなら K11 -> K20 の順）
+    const orderedStations = direction === "A"
+      ? [...SAKAISUJI_ORDERED_STATIONS].reverse() // 天下茶屋(20) -> 北浜(14) -> 天六(11)
+      : [...SAKAISUJI_ORDERED_STATIONS];           // 天六(11) -> 北浜(14) -> 天下茶屋(20)
+
     const payload = {
       targetStation: "北浜",
       stationCode: "K14",
       direction: direction,
-      directionName: direction === "A" ? "天神橋筋六丁目・阪急線方面" : "天下茶屋方面",
+      directionName: direction === "A" ? "天神橋筋六丁目・阪急線 方面（上り）" : "天下茶屋 方面（下り）",
+      operation: {
+        status: operationStatus,
+        message: operationMessage
+      },
       updatedAt: new Date().toISOString(),
-      trains: trains.slice(0, 4) // 次にやってくる上位4本のみ返却（通信量最小化）
+      stations: orderedStations,
+      trains: allTrains, // 堺筋線を走行中の全列車
+      approachingTrains: approachingTrains.slice(0, 3) // 直近の先発・次発・次々発サマリー
     };
 
     return new Response(JSON.stringify(payload), {
@@ -63,7 +107,7 @@ export async function onRequestGet(context) {
       headers: {
         "Content-Type": "application/json; charset=utf-8",
         "Access-Control-Allow-Origin": "*",
-        "Cache-Control": "public, max-age=5, s-maxage=5"
+        "Cache-Control": "public, max-age=1, s-maxage=1"
       }
     });
   } catch (err) {

@@ -15,7 +15,7 @@ test("Cloudflare Pages Functions: onRequestGet 疎通テスト", async () => {
   assert.equal(body.targetStation, "北浜");
   assert.equal(body.stationCode, "K14");
   assert.equal(body.direction, "A");
-  assert.equal(body.directionName, "天神橋筋六丁目・阪急線方面");
+  assert.equal(body.directionName, "天神橋筋六丁目・阪急線 方面（上り）");
   assert.ok(Array.isArray(body.trains));
   assert.ok(body.trains.length <= 4, "Should return at most 4 trains");
   assert.ok(body.updatedAt);
@@ -31,5 +31,5 @@ test("Cloudflare Pages Functions: 下り(dir=B) リクエスト", async () => {
 
   const body = await response.json();
   assert.equal(body.direction, "B");
-  assert.equal(body.directionName, "天下茶屋方面");
+  assert.equal(body.directionName, "天下茶屋 方面（下り）");
 });
