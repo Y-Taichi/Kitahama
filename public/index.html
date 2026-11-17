@@ -3,34 +3,67 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title></title>
+  <title>北浜駅 列車モニター</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div id="container">
-    <svg id="canvas" viewBox="0 0 360 640" preserveAspectRatio="xMidYMid meet">
-      <!-- 定義・再利用シンボル -->
-      <defs>
-        <!-- 堺筋線カラーグラデーション -->
-        <linearGradient id="sakaisujiGrad" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stop-color="#9C5B3D" />
-          <stop offset="100%" stop-color="#6E381E" />
-        </linearGradient>
-        <!-- レール用グラデーション -->
-        <linearGradient id="railGrad" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stop-color="#4A5568" />
-          <stop offset="50%" stop-color="#CBD5E0" />
-          <stop offset="100%" stop-color="#4A5568" />
-        </linearGradient>
-      </defs>
+  <div id="app-layout">
+    <!-- 左側〜中央: 本画面（大きな文字で情報表示） -->
+    <main id="main-screen">
+      <div id="train-cards-container">
+        <!-- ライブデータによって動的に生成 -->
+        <div class="empty-state">
+          <div class="empty-title">天神橋筋六丁目 方面</div>
+          <div class="empty-desc">長堀橋〜北浜の走行データを読み込み中...</div>
+        </div>
+      </div>
+    </main>
 
-      <!-- 静的背景（線路・ホーム・駅サイン） -->
-      <g id="track-infrastructure"></g>
+    <!-- 右端のバー: 常時上から長堀橋、堺筋本町、一番下に北浜 -->
+    <aside id="right-bar">
+      <!-- 縦のレール線 -->
+      <div class="track-line"></div>
 
-      <!-- 動的列車レイヤー（電車イラスト・数字・行先・秒数） -->
-      <g id="trains-layer"></g>
-    </svg>
+      <!-- 5つの等間隔スロット -->
+      <!-- Slot 1: 長堀橋駅 -->
+      <div class="bar-slot station-slot" id="slot-K16">
+        <div class="train-anchor" id="anchor-K16"></div>
+        <div class="station-mark">
+          <span class="station-badge">K16</span>
+          <span class="station-name-label">長堀橋</span>
+        </div>
+      </div>
+
+      <!-- Slot 2: 長堀橋〜堺筋本町 走行中 -->
+      <div class="bar-slot between-slot" id="slot-K16-K15">
+        <div class="train-anchor" id="anchor-K16-K15"></div>
+      </div>
+
+      <!-- Slot 3: 堺筋本町駅 -->
+      <div class="bar-slot station-slot" id="slot-K15">
+        <div class="train-anchor" id="anchor-K15"></div>
+        <div class="station-mark">
+          <span class="station-badge">K15</span>
+          <span class="station-name-label">堺筋本町</span>
+        </div>
+      </div>
+
+      <!-- Slot 4: 堺筋本町〜北浜 走行中 -->
+      <div class="bar-slot between-slot" id="slot-K15-K14">
+        <div class="train-anchor" id="anchor-K15-K14"></div>
+      </div>
+
+      <!-- Slot 5: 一番下・北浜駅 -->
+      <div class="bar-slot station-slot kitahama-slot" id="slot-K14">
+        <div class="train-anchor" id="anchor-K14"></div>
+        <div class="station-mark">
+          <span class="station-badge kitahama-badge">K14</span>
+          <span class="station-name-label kitahama-name">北浜</span>
+        </div>
+      </div>
+    </aside>
   </div>
+
   <script src="app.js"></script>
 </body>
 </html>

@@ -63,7 +63,7 @@ test("Integration Test: ローカルHTTPサーバーの動作検証", async () =
     const htmlRes = await fetch(`http://localhost:${port}/`);
     assert.equal(htmlRes.status, 200);
     const html = await htmlRes.text();
-    assert.ok(html.includes("canvas"));
+    assert.ok(html.includes("app-layout") || html.includes("main-screen"));
 
     // 2. GET /style.css
     const cssRes = await fetch(`http://localhost:${port}/style.css`);

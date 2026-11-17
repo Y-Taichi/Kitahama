@@ -96,8 +96,8 @@ const server = http.createServer(async (req, res) => {
 
       // サーバー側で追跡された全列車リストを取得
       const trackedAll = serverTracker.process(lastRawList, Date.now());
-      // 北浜、堺筋本町、長堀橋、およびその間の走行中のみ抽出
-      const targetTrains = filterTargetSectionTrains(trackedAll);
+      // 天神橋筋六丁目に向かう電車（上り: A）のみを抽出
+      const targetTrains = filterTargetSectionTrains(trackedAll, "A");
 
       // 既存互換用
       const defaultDir = dir || "A";
@@ -110,13 +110,13 @@ const server = http.createServer(async (req, res) => {
       const payload = {
         targetStation: "北浜",
         stationCode: "K14",
-        direction: defaultDir,
-        directionName: defaultDir === "A" ? "天神橋筋六丁目・阪急線 方面（上り）" : "天下茶屋 方面（下り）",
+        direction: "A",
+        directionName: "天神橋筋六丁目・阪急線 方面（上り）",
         operation: lastOperationInfo,
         updatedAt: new Date().toISOString(),
         stations: orderedStations,
-        // 北浜・堺筋本町・長堀橋＋駅間のみの列車（サーバー側で秒数カウント済み）
-        targetTrains: dir ? targetTrains.filter(t => t.direction === dir) : targetTrains,
+        // 天神橋筋六丁目に向かう電車のみ（天下茶屋行きは除外）
+        targetTrains: targetTrains,
         allTargetTrains: targetTrains,
         trains: allTrains,
         approachingTrains: approachingTrains.slice(0, 3)

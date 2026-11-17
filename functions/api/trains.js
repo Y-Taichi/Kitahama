@@ -86,7 +86,8 @@ export async function onRequestGet(context) {
 
     // サーバー側追跡（秒数カウント）
     const trackedAll = edgeTracker.process(rawList, Date.now());
-    const targetTrains = filterTargetSectionTrains(trackedAll);
+    // 天六方面に向かう電車（上り: A）のみ抽出
+    const targetTrains = filterTargetSectionTrains(trackedAll, "A");
 
     // 全列車データを処理（トラック・マップ表示用）
     const allTrains = processAllSakaisujiTrains(rawList, direction);
@@ -110,7 +111,7 @@ export async function onRequestGet(context) {
       },
       updatedAt: new Date().toISOString(),
       stations: orderedStations,
-      targetTrains: targetTrains.filter(t => t.direction === direction),
+      targetTrains: targetTrains,
       allTargetTrains: targetTrains,
       trains: allTrains, // 堺筋線を走行中の全列車
       approachingTrains: approachingTrains.slice(0, 3) // 直近の先発・次発・次々発サマリー

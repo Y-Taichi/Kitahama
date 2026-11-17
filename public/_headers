@@ -15,6 +15,9 @@
 /app.js
   Cache-Control: public, max-age=3600, stale-while-revalidate=60
 
+/icons/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=600
+
 /api/*
   Cache-Control: no-cache, no-store, must-revalidate
   Access-Control-Allow-Origin: *
