@@ -2,86 +2,35 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>北浜駅 列車位置モニター - リアルタイム路線マップ</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title></title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div class="container">
-    <!-- ヘッダー -->
-    <header class="header">
-      <div class="station-badge">
-        <span class="line-dot"></span>
-        <span class="station-code">K14</span>
-        <h1 class="station-name">北浜駅</h1>
-      </div>
-      <div class="live-indicator">
-        <span class="pulse-dot"></span>
-        <span class="live-text">LIVE 1s</span>
-      </div>
-    </header>
+  <div id="container">
+    <svg id="canvas" viewBox="0 0 360 640" preserveAspectRatio="xMidYMid meet">
+      <!-- 定義・再利用シンボル -->
+      <defs>
+        <!-- 堺筋線カラーグラデーション -->
+        <linearGradient id="sakaisujiGrad" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#9C5B3D" />
+          <stop offset="100%" stop-color="#6E381E" />
+        </linearGradient>
+        <!-- レール用グラデーション -->
+        <linearGradient id="railGrad" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stop-color="#4A5568" />
+          <stop offset="50%" stop-color="#CBD5E0" />
+          <stop offset="100%" stop-color="#4A5568" />
+        </linearGradient>
+      </defs>
 
-    <!-- 運行情報バナー -->
-    <div id="operation-banner" class="operation-banner normal">
-      <span class="op-badge">運行情報</span>
-      <span id="op-status" class="op-status">平常運転</span>
-    </div>
+      <!-- 静的背景（線路・ホーム・駅サイン） -->
+      <g id="track-infrastructure"></g>
 
-    <!-- 方面切り替えタブ -->
-    <nav class="direction-tabs" role="tablist">
-      <button class="tab-btn active" data-dir="A" role="tab" aria-selected="true">
-        ▲ 天神橋筋六丁目・阪急線 方面（上り）
-      </button>
-      <button class="tab-btn" data-dir="B" role="tab" aria-selected="false">
-        ▼ 天下茶屋 方面（下り）
-      </button>
-    </nav>
-
-    <!-- 北浜駅 発車サマリー（先発・次発） -->
-    <section class="summary-section">
-      <div class="section-title">北浜駅 接近列車</div>
-      <div id="approaching-cards" class="summary-grid">
-        <div class="summary-card loading">データ取得中...</div>
-      </div>
-    </section>
-
-    <!-- 路線図型 リアルタイム全列車位置マップ -->
-    <section class="track-section">
-      <div class="track-header">
-        <div class="section-title">全列車 走行位置マップ</div>
-        <span class="track-legend">
-          <span class="legend-item"><span class="train-dot metro"></span>メトロ車</span>
-          <span class="legend-item"><span class="train-dot hankyu"></span>阪急車</span>
-        </span>
-      </div>
-
-      <!-- トラックタイムライン -->
-      <div id="route-track" class="route-track">
-        <div class="loading-state">走行位置マップを読み込み中...</div>
-      </div>
-    </section>
-
-    <!-- フッター -->
-    <footer class="footer">
-      <div class="footer-meta">
-        <span id="last-updated" class="last-updated">更新中...</span>
-        <span id="train-count" class="train-count"></span>
-      </div>
-      <div class="footer-source">Osaka Metro 堺筋線 リアルタイムデータ (1秒間隔更新)</div>
-    </footer>
+      <!-- 動的列車レイヤー（電車イラスト・数字・行先・秒数） -->
+      <g id="trains-layer"></g>
+    </svg>
   </div>
-
-  <!-- 車両詳細モーダル -->
-  <dialog id="detail-modal" class="detail-modal">
-    <div class="modal-box">
-      <div class="modal-header">
-        <h3 id="modal-title">車両詳細</h3>
-        <button id="modal-close-btn" class="modal-close">&times;</button>
-      </div>
-      <div id="modal-body" class="modal-body"></div>
-    </div>
-  </dialog>
-
   <script src="app.js"></script>
 </body>
 </html>

@@ -2,7 +2,12 @@ import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { processAllSakaisujiTrains, filterAndSortKitahamaTrains } from "./lib/train-tracker.js";
+import {
+  processAllSakaisujiTrains,
+  filterAndSortKitahamaTrains,
+  TrainStateTracker,
+  filterTargetSectionTrains
+} from "./lib/train-tracker.js";
 import { SAKAISUJI_ORDERED_STATIONS } from "./lib/stations.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -21,69 +26,98 @@ const MIME_TYPES = {
   ".svg": "image/svg+xml"
 };
 
+// サーバー側で走行中・停車中の経過秒数を常時追跡するトラッカー
+const serverTracker = new TrainStateTracker();
+let lastRawList = [];
+let lastOperationInfo = { status: "平常運転", message: "" };
+let lastFetchError = null;
+
+async function pollOsakaMetroApi() {
+  try {
+    const [apiRes, opRes] = await Promise.all([
+      fetch(OSAKA_METRO_API_URL, {
+        headers: {
+          "X-Api-Key": API_KEY,
+          "Accept-Language": "ja",
+          "User-Agent": "KitahamaLocalDev/1.0"
+        }
+      }),
+      fetch(OPERATION_INFO_URL, {
+        headers: {
+          "X-Api-Key": API_KEY,
+          "Accept-Language": "ja"
+        }
+      }).catch(() => null)
+    ]);
+
+    if (apiRes.ok) {
+      const rawData = await apiRes.json();
+      lastRawList = rawData.trainLocationList || [];
+      // サーバー側で状態更新＆秒数カウントを即座に反映
+      serverTracker.process(lastRawList, Date.now());
+      lastFetchError = null;
+    }
+
+    if (opRes && opRes.ok) {
+      try {
+        const opData = await opRes.json();
+        if (opData.operationInfoList && opData.operationInfoList.length > 0) {
+          lastOperationInfo = {
+            status: "ダイヤ乱れ・運行情報あり",
+            message: opData.operationInfoList.map(item => item.informationText || "").join("\n")
+          };
+        } else {
+          lastOperationInfo = { status: "平常運転", message: "" };
+        }
+      } catch (e) {}
+    }
+  } catch (err) {
+    lastFetchError = err;
+  }
+}
+
+// サーバー起動直後から1.5秒間隔でバックグラウンド追跡（スマホのアクセス前から常時カウント）
+pollOsakaMetroApi();
+setInterval(pollOsakaMetroApi, 1500);
+
 const server = http.createServer(async (req, res) => {
   const reqUrl = new URL(req.url, `http://${req.headers.host}`);
 
   // API エンドポイント
   if (reqUrl.pathname === "/api/trains") {
-    const dir = reqUrl.searchParams.get("dir") === "B" ? "B" : "A";
+    const dirParam = reqUrl.searchParams.get("dir");
+    const dir = dirParam === "B" ? "B" : dirParam === "A" ? "A" : null;
 
     try {
-      const [apiRes, opRes] = await Promise.all([
-        fetch(OSAKA_METRO_API_URL, {
-          headers: {
-            "X-Api-Key": API_KEY,
-            "Accept-Language": "ja",
-            "User-Agent": "KitahamaLocalDev/1.0"
-          }
-        }),
-        fetch(OPERATION_INFO_URL, {
-          headers: {
-            "X-Api-Key": API_KEY,
-            "Accept-Language": "ja"
-          }
-        }).catch(() => null)
-      ]);
-
-      if (!apiRes.ok) {
-        res.writeHead(502, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ error: "Failed to fetch from Osaka Metro API" }));
-        return;
+      // 直近のデータがない場合は即座にフェッチ
+      if (lastRawList.length === 0) {
+        await pollOsakaMetroApi();
       }
 
-      const rawData = await apiRes.json();
-      const rawList = rawData.trainLocationList || [];
+      // サーバー側で追跡された全列車リストを取得
+      const trackedAll = serverTracker.process(lastRawList, Date.now());
+      // 北浜、堺筋本町、長堀橋、およびその間の走行中のみ抽出
+      const targetTrains = filterTargetSectionTrains(trackedAll);
 
-      let operationStatus = "平常運転";
-      let operationMessage = "";
-      if (opRes && opRes.ok) {
-        try {
-          const opData = await opRes.json();
-          if (opData.operationInfoList && opData.operationInfoList.length > 0) {
-            operationStatus = "ダイヤ乱れ・運行情報あり";
-            operationMessage = opData.operationInfoList.map(item => item.informationText || "").join("\n");
-          }
-        } catch (e) {}
-      }
-
-      const allTrains = processAllSakaisujiTrains(rawList, dir);
-      const approachingTrains = filterAndSortKitahamaTrains(rawList, dir);
-
-      const orderedStations = dir === "A"
+      // 既存互換用
+      const defaultDir = dir || "A";
+      const allTrains = processAllSakaisujiTrains(lastRawList, defaultDir);
+      const approachingTrains = filterAndSortKitahamaTrains(lastRawList, defaultDir);
+      const orderedStations = defaultDir === "A"
         ? [...SAKAISUJI_ORDERED_STATIONS].reverse()
         : [...SAKAISUJI_ORDERED_STATIONS];
 
       const payload = {
         targetStation: "北浜",
         stationCode: "K14",
-        direction: dir,
-        directionName: dir === "A" ? "天神橋筋六丁目・阪急線 方面（上り）" : "天下茶屋 方面（下り）",
-        operation: {
-          status: operationStatus,
-          message: operationMessage
-        },
+        direction: defaultDir,
+        directionName: defaultDir === "A" ? "天神橋筋六丁目・阪急線 方面（上り）" : "天下茶屋 方面（下り）",
+        operation: lastOperationInfo,
         updatedAt: new Date().toISOString(),
         stations: orderedStations,
+        // 北浜・堺筋本町・長堀橋＋駅間のみの列車（サーバー側で秒数カウント済み）
+        targetTrains: dir ? targetTrains.filter(t => t.direction === dir) : targetTrains,
+        allTargetTrains: targetTrains,
         trains: allTrains,
         approachingTrains: approachingTrains.slice(0, 3)
       };

@@ -1,366 +1,290 @@
 (() => {
-  const REFRESH_INTERVAL_MS = 1000; // 1秒間隔更新
-  let currentDirection = "A"; // "A": 天六・阪急方面 (上り), "B": 天下茶屋方面 (下り)
-  let timerId = null;
+  const REFRESH_INTERVAL_MS = 1000;
+  const canvas = document.getElementById("canvas");
+  const infraLayer = document.getElementById("track-infrastructure");
+  const trainsLayer = document.getElementById("trains-layer");
+
   let isFetching = false;
-  let currentData = null;
+  let timerId = null;
 
-  const routeTrackEl = document.getElementById("route-track");
-  const approachingCardsEl = document.getElementById("approaching-cards");
-  const lastUpdatedEl = document.getElementById("last-updated");
-  const trainCountEl = document.getElementById("train-count");
-  const opStatusEl = document.getElementById("op-status");
-  const opBannerEl = document.getElementById("operation-banner");
-  const tabButtons = document.querySelectorAll(".tab-btn");
+  // 静的インフラ（線路・ホーム・駅サイン）の描画
+  function buildInfrastructure() {
+    let svg = "";
 
-  const detailModal = document.getElementById("detail-modal");
-  const modalBody = document.getElementById("modal-body");
-  const modalCloseBtn = document.getElementById("modal-close-btn");
+    // 1. 枕木（スリーパー）: 左レール(X=80) と 右レール(X=280)
+    for (let y = 16; y <= 624; y += 18) {
+      svg += `<rect x="58" y="${y}" width="44" height="6" rx="1.5" fill="#1C212B" />`;
+      svg += `<rect x="258" y="${y}" width="44" height="6" rx="1.5" fill="#1C212B" />`;
+    }
 
-  if (modalCloseBtn) {
-    modalCloseBtn.addEventListener("click", () => detailModal.close());
+    // 2. レール（鉄路）
+    // 左線路 (上り線 ↑)
+    svg += `<line x1="68" y1="0" x2="68" y2="640" stroke="#3A4454" stroke-width="3" stroke-linecap="square"/>`;
+    svg += `<line x1="92" y1="0" x2="92" y2="640" stroke="#3A4454" stroke-width="3" stroke-linecap="square"/>`;
+
+    // 右線路 (下り線 ↓)
+    svg += `<line x1="268" y1="0" x2="268" y2="640" stroke="#3A4454" stroke-width="3" stroke-linecap="square"/>`;
+    svg += `<line x1="292" y1="0" x2="292" y2="640" stroke="#3A4454" stroke-width="3" stroke-linecap="square"/>`;
+
+    // 3. 走行方向ベクター矢印（レール上のピクトグラム）
+    // 上り線: 上向き矢印 ↑ (Y=200, Y=440)
+    svg += createDirectionArrow(80, 200, "up");
+    svg += createDirectionArrow(80, 440, "up");
+    // 下り線: 下向き矢印 ↓ (Y=200, Y=440)
+    svg += createDirectionArrow(280, 200, "down");
+    svg += createDirectionArrow(280, 440, "down");
+
+    // 4. 駅プラットフォーム（北浜、堺筋本町、長堀橋の3駅のみ）
+    // 北浜 (K14, Y=80)
+    svg += createStationPlatform(80, "K14");
+    // 堺筋本町 (K15, Y=320)
+    svg += createStationPlatform(320, "K15");
+    // 長堀橋 (K16, Y=560)
+    svg += createStationPlatform(560, "K16");
+
+    infraLayer.innerHTML = svg;
   }
 
-  // タブ切り替え
-  tabButtons.forEach(btn => {
-    btn.addEventListener("click", () => {
-      if (btn.classList.contains("active")) return;
-      tabButtons.forEach(b => {
-        b.classList.remove("active");
-        b.setAttribute("aria-selected", "false");
-      });
-      btn.classList.add("active");
-      btn.setAttribute("aria-selected", "true");
-
-      currentDirection = btn.getAttribute("data-dir");
-      fetchTrainData();
-    });
-  });
-
-  // 電車イラスト SVG の生成
-  function createTrainSvg(typeInfo) {
-    const isHankyu = typeInfo && typeInfo.isHankyu;
-    const bodyColor = isHankyu ? "#5C061F" : "#4A5568"; // 阪急マルーン vs アルミシルバー
-    const stripeColor = isHankyu ? "#E2D9B7" : "#81472C"; // 阪急アイボリー屋根帯 vs 堺筋線茶色帯
-    const roofColor = isHankyu ? "#3B0314" : "#2D3748";
-
+  // 方向矢印ピクトグラム（ベクター）
+  function createDirectionArrow(cx, cy, dir) {
+    if (dir === "up") {
+      return `
+        <g opacity="0.35">
+          <path d="M${cx} ${cy - 16} L${cx - 7} ${cy - 5} L${cx - 3} ${cy - 5} L${cx - 3} ${cy + 14} L${cx + 3} ${cy + 14} L${cx + 3} ${cy - 5} L${cx + 7} ${cy - 5} Z" fill="#60A5FA" />
+        </g>
+      `;
+    }
     return `
-      <svg class="train-svg-icon" viewBox="0 0 40 30" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <!-- パンタグラフ -->
-        <path d="M16 4L20 1L24 4" stroke="#A0AEC0" stroke-width="1.5" stroke-linecap="round"/>
-        <line x1="20" y1="1" x2="20" y2="5" stroke="#A0AEC0" stroke-width="1.5"/>
-        <!-- 車体ベース -->
-        <rect x="2" y="5" width="36" height="20" rx="3" fill="${bodyColor}" stroke="#1A202C" stroke-width="1"/>
-        <!-- 屋根 -->
-        <rect x="2" y="5" width="36" height="4" rx="2" fill="${roofColor}"/>
-        <!-- 帯（ラインカラー） -->
-        <rect x="2" y="16" width="36" height="3" fill="${stripeColor}"/>
-        <!-- 窓 -->
-        <rect x="6" y="9" width="7" height="6" rx="1" fill="#63B3ED"/>
-        <rect x="15" y="9" width="10" height="6" rx="1" fill="#63B3ED"/>
-        <rect x="27" y="9" width="7" height="6" rx="1" fill="#63B3ED"/>
-        <!-- 前照灯 (ヘッドライト) -->
-        <circle cx="6" cy="21" r="1.5" fill="#FAF089"/>
-        <circle cx="34" cy="21" r="1.5" fill="#FAF089"/>
-        <!-- 台車 / 車輪 -->
-        <circle cx="9" cy="26" r="2.5" fill="#1A202C" stroke="#718096" stroke-width="1"/>
-        <circle cx="31" cy="26" r="2.5" fill="#1A202C" stroke="#718096" stroke-width="1"/>
-      </svg>
+      <g opacity="0.35">
+        <path d="M${cx} ${cy + 16} L${cx - 7} ${cy + 5} L${cx - 3} ${cy + 5} L${cx - 3} ${cy - 14} L${cx + 3} ${cy - 14} L${cx + 3} ${cy + 5} L${cx + 7} ${cy + 5} Z" fill="#F87171" />
+      </g>
     `;
   }
 
-  // 列車バッジの HTML 生成
-  function createTrainBadgeHtml(train) {
+  // 駅プラットフォームと駅ナンバリングサイン（ベクター）
+  function createStationPlatform(cy, code) {
+    const top = cy - 35;
+    const height = 70;
+    return `
+      <!-- ホーム床面 -->
+      <rect x="114" y="${top}" width="132" height="${height}" rx="5" fill="#151A23" stroke="#252E3E" stroke-width="1.5" />
+      <!-- 点字ブロック（黄色ライン） -->
+      <line x1="120" y1="${top + 2}" x2="120" y2="${top + height - 2}" stroke="#D97706" stroke-width="2.5" stroke-dasharray="3,2" />
+      <line x1="240" y1="${top + 2}" x2="240" y2="${top + height - 2}" stroke="#D97706" stroke-width="2.5" stroke-dasharray="3,2" />
+      <!-- ホーム安全柵ピクトグラム -->
+      <rect x="124" y="${top + 6}" width="4" height="${height - 12}" rx="1" fill="#2C3748" />
+      <rect x="232" y="${top + 6}" width="4" height="${height - 12}" rx="1" fill="#2C3748" />
+      <!-- 駅ナンバリングサイン (茶色サークル + コード) -->
+      <circle cx="180" cy="${cy}" r="19" fill="#81472C" stroke="#FFFFFF" stroke-width="2.5" />
+      <text x="180" y="${cy + 5}" text-anchor="middle" fill="#FFFFFF" font-size="12" font-weight="900" font-family="Arial, sans-serif" letter-spacing="0.5">${code}</text>
+    `;
+  }
+
+  // 電車のベクターイラスト描画
+  function renderTrainSvg(train, cx, cy, isUpward) {
     const isHankyu = train.typeInfo && train.typeInfo.isHankyu;
-    const companyClass = isHankyu ? "hankyu" : "metro";
-    const companyName = isHankyu ? "阪急" : "メトロ";
-    const series = train.typeInfo ? train.typeInfo.series : "";
+    const bodyColor = isHankyu ? "#5C061F" : "#718096"; // 阪急マルーン vs メトロシルバー
+    const stripeColor = isHankyu ? "#F3EFE0" : "#81472C"; // アイボリー vs 堺筋線茶色
+    const roofColor = isHankyu ? "#3B0314" : "#4A5568";
+
+    const width = 32;
+    const height = 48;
+    const x = cx - width / 2;
+    const y = cy - height / 2;
+
+    // 前面（進行方向）の向き
+    // 上り: 上向き（前照灯が上、赤尾灯が下）
+    // 下り: 下向き（前照灯が下、赤尾灯が上）
+    const headLightY = isUpward ? y + 5 : y + height - 5;
+    const tailLightY = isUpward ? y + height - 5 : y + 5;
+    const windowY = isUpward ? y + 10 : y + 24;
+    const pantographY = isUpward ? y + height - 2 : y + 2;
 
     return `
-      <div class="train-illustration-badge ${companyClass}" data-vnum="${escapeHtml(train.vehicleNumber)}">
-        ${createTrainSvg(train.typeInfo)}
-        <div class="train-info-stack">
-          <div class="train-badge-top">
-            <span class="train-car-no">${escapeHtml(train.vehicleNumber || "不明")}号</span>
-            <span class="train-type-pill">${escapeHtml(companyName)} ${escapeHtml(series)}</span>
-          </div>
-          <div class="train-badge-dest">
-            ${escapeHtml(train.destination)} <small>行</small>
-          </div>
-        </div>
-      </div>
+      <g>
+        <!-- パンタグラフ -->
+        <path d="M${cx - 6} ${pantographY} L${cx} ${isUpward ? pantographY + 5 : pantographY - 5} L${cx + 6} ${pantographY}" stroke="#A0AEC0" stroke-width="1.5" fill="none"/>
+
+        <!-- 車体ベース -->
+        <rect x="${x}" y="${y}" width="${width}" height="${height}" rx="4" fill="${bodyColor}" stroke="#1A202C" stroke-width="1.5" />
+        
+        <!-- 屋根/帯 -->
+        <rect x="${x + 2}" y="${y + 2}" width="${width - 4}" height="6" rx="2" fill="${roofColor}" />
+        <rect x="${x}" y="${cy - 2}" width="${width}" height="4" fill="${stripeColor}" />
+
+        <!-- 窓ガラス -->
+        <rect x="${x + 4}" y="${windowY}" width="${width - 8}" height="14" rx="2" fill="#1A365D" stroke="#2B6CB0" stroke-width="1" />
+
+        <!-- 前照灯（ヘッドライト点灯・イエロー） -->
+        <circle cx="${x + 6}" cy="${headLightY}" r="2" fill="#FBBF24" />
+        <circle cx="${x + width - 6}" cy="${headLightY}" r="2" fill="#FBBF24" />
+
+        <!-- 赤色尾灯（テールライト・レッド） -->
+        <circle cx="${x + 6}" cy="${tailLightY}" r="1.5" fill="#EF4444" />
+        <circle cx="${x + width - 6}" cy="${tailLightY}" r="1.5" fill="#EF4444" />
+
+        <!-- 車輪/台車ピクトグラム -->
+        <rect x="${x + 2}" y="${y + 8}" width="2" height="6" rx="1" fill="#1A202C" />
+        <rect x="${x + width - 4}" y="${y + 8}" width="2" height="6" rx="1" fill="#1A202C" />
+        <rect x="${x + 2}" y="${y + height - 14}" width="2" height="6" rx="1" fill="#1A202C" />
+        <rect x="${x + width - 4}" y="${y + height - 14}" width="2" height="6" rx="1" fill="#1A202C" />
+      </g>
     `;
   }
 
-  // データフェッチ
+  // 電車の数字・行先・経過秒数、および予測（次状態までの直前1本/3本平均・北浜停車合計）の描画
+  function renderTrainBadge(train, cx, cy, isUpward) {
+    const badgeW = 76;
+    const badgeH = 54;
+    // 上り線(X=80)は中央寄り X=99 に配置 (99〜175)
+    // 下り線(X=280)は中央寄り X=185 に配置 (185〜261)
+    const bx = isUpward ? 99 : 185;
+    const by = cy - badgeH / 2;
+
+    const vNum = escapeXml(train.vehicleNumber || "");
+    const dest = escapeXml(train.destination || "");
+    const sec = `${Math.max(0, parseInt(train.elapsedSeconds, 10) || 0)}s`;
+
+    // 予測データ
+    const pred = train.prediction || {};
+    const nextPred = pred.nextState || {};
+    const arrPred = pred.kitahamaArrival || {};
+
+    const nextLast = nextPred.last != null ? `${nextPred.last}s` : "-";
+    const nextAvg3 = nextPred.avg3 != null ? `${nextPred.avg3}s` : "-";
+
+    let arrivalText = "";
+    if (arrPred.isAtKitahama) {
+      arrivalText = "北浜: 0s (当駅)";
+    } else if (arrPred.totalLast != null && arrPred.totalAvg3 != null) {
+      arrivalText = `北浜: ${arrPred.totalLast}s / ${arrPred.totalAvg3}s`;
+    } else {
+      arrivalText = `次: ${nextLast} / ${nextAvg3}`;
+    }
+
+    return `
+      <g>
+        <!-- バッジ背景 -->
+        <rect x="${bx}" y="${by}" width="${badgeW}" height="${badgeH}" rx="4" fill="#0E141F" stroke="#252F42" stroke-width="1.2" />
+        
+        <!-- 1行目: 電車の数字（車番）と行先 -->
+        <text x="${bx + 4}" y="${by + 13}" fill="#FFFFFF" font-size="10" font-weight="800" font-family="-apple-system, sans-serif">${vNum}</text>
+        <text x="${bx + badgeW - 4}" y="${by + 13}" text-anchor="end" fill="#FBBF24" font-size="9" font-weight="700" font-family="-apple-system, sans-serif">${dest}</text>
+        
+        <!-- 2行目: 経過秒数 -->
+        <text x="${bx + 4}" y="${by + 26}" fill="#38BDF8" font-size="9.5" font-weight="800" font-family="-apple-system, sans-serif">経過: ${sec}</text>
+
+        <!-- 3行目: 次の状態までの実績（直前1本 / 以前3本平均） -->
+        <text x="${bx + 4}" y="${by + 38}" fill="#94A3B8" font-size="8" font-weight="600" font-family="-apple-system, sans-serif">次: ${nextLast} / ${nextAvg3}</text>
+
+        <!-- 4行目: 北浜停車までの合計（直前 / 3本平均） -->
+        <text x="${bx + 4}" y="${by + 49}" fill="#34D399" font-size="8" font-weight="800" font-family="-apple-system, sans-serif">${arrivalText}</text>
+      </g>
+    `;
+  }
+
+  // 列車を描画
+  function renderTrains(trains) {
+    let svg = "";
+
+    // 列車位置のスロットマッピング
+    // 上り: X=80 (進行方向: 上)
+    // 下り: X=280 (進行方向: 下)
+    const POSITIONS = {
+      // 北浜(K14) 停車中
+      "STOPPED:K14:A": { x: 80, y: 80, isUpward: true },
+      "STOPPED:K14:B": { x: 280, y: 80, isUpward: false },
+      // 北浜〜堺筋本町 走行中
+      "RUNNING:K15->K14:A": { x: 80, y: 200, isUpward: true },
+      "RUNNING:K14->K15:B": { x: 280, y: 200, isUpward: false },
+      // 堺筋本町(K15) 停車中
+      "STOPPED:K15:A": { x: 80, y: 320, isUpward: true },
+      "STOPPED:K15:B": { x: 280, y: 320, isUpward: false },
+      // 堺筋本町〜長堀橋 走行中
+      "RUNNING:K16->K15:A": { x: 80, y: 440, isUpward: true },
+      "RUNNING:K15->K16:B": { x: 280, y: 440, isUpward: false },
+      // 長堀橋(K16) 停車中
+      "STOPPED:K16:A": { x: 80, y: 560, isUpward: true },
+      "STOPPED:K16:B": { x: 280, y: 560, isUpward: false }
+    };
+
+    const slotCounts = {};
+
+    trains.forEach(t => {
+      let key = "";
+      if (t.status === "STOPPED") {
+        key = `STOPPED:${t.fromStationCode}:${t.direction}`;
+      } else if (t.status === "RUNNING") {
+        key = `RUNNING:${t.fromStationCode}->${t.toStationCode}:${t.direction}`;
+      }
+
+      const slot = POSITIONS[key];
+      if (!slot) return;
+
+      // 複数列車重複時の微調整オフセット
+      slotCounts[key] = (slotCounts[key] || 0) + 1;
+      const count = slotCounts[key];
+      const yOffset = (count - 1) * 20;
+
+      const px = slot.x;
+      const py = slot.y + yOffset;
+
+      svg += renderTrainSvg(t, px, py, slot.isUpward);
+      svg += renderTrainBadge(t, px, py, slot.isUpward);
+    });
+
+    trainsLayer.innerHTML = svg;
+  }
+
+  // データ取得
   async function fetchTrainData() {
     if (isFetching) return;
     isFetching = true;
 
     try {
-      const res = await fetch(`/api/trains?dir=${currentDirection}`, {
+      const res = await fetch("/api/trains", {
         headers: { "Accept": "application/json" }
       });
-
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
-      }
+      if (!res.ok) return;
 
       const data = await res.json();
-      currentData = data;
-      renderAll(data);
+      const targetTrains = data.allTargetTrains || data.targetTrains || [];
+      renderTrains(targetTrains);
     } catch (err) {
-      console.error("[Kitahama Monitor] Fetch error:", err);
+      // エラー時もアニメーションや余計な文字は表示しない
     } finally {
       isFetching = false;
     }
   }
 
-  // 画面全体のレンダリング
-  function renderAll(data) {
-    const now = new Date();
-    const timeStr = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
-    lastUpdatedEl.textContent = `最終更新: ${timeStr}`;
-
-    // 運行情報
-    if (data.operation) {
-      opStatusEl.textContent = data.operation.status || "平常運転";
-      if (data.operation.status !== "平常運転") {
-        opBannerEl.classList.remove("normal");
-        opBannerEl.classList.add("warning");
-      } else {
-        opBannerEl.classList.remove("warning");
-        opBannerEl.classList.add("normal");
-      }
-    }
-
-    // 列車総数
-    const trains = data.trains || [];
-    trainCountEl.textContent = `在線: ${trains.length}本`;
-
-    renderApproachingCards(data.approachingTrains || []);
-    renderRouteTrack(data.stations || [], trains);
-  }
-
-  // 北浜接近列車サマリー（先発・次発）
-  function renderApproachingCards(approaching) {
-    if (approaching.length === 0) {
-      approachingCardsEl.innerHTML = `
-        <div class="summary-card">
-          <div class="sum-status">接近中の列車はありません</div>
-        </div>
-      `;
-      return;
-    }
-
-    approachingCardsEl.innerHTML = approaching.map((t, idx) => {
-      let cardClass = "summary-card";
-      if (t.isAtKitahama) cardClass += " at-station";
-      else if (idx === 0) cardClass += " first";
-
-      return `
-        <div class="${cardClass}">
-          <div class="sum-top">
-            <span class="sum-order">${escapeHtml(t.orderLabel)}</span>
-            <span class="sum-car">${escapeHtml(t.vehicleNumber ? t.vehicleNumber + "号" : "")}</span>
-          </div>
-          <div class="sum-dest">${escapeHtml(t.destination)} <span style="font-size:0.75rem; font-weight:normal;">行</span></div>
-          <div class="sum-status">${escapeHtml(t.distanceLabel)} (${escapeHtml(t.locationDescription)})</div>
-        </div>
-      `;
-    }).join("");
-  }
-
-  // 路線図型 リアルタイム全列車位置マップ
-  function renderRouteTrack(stations, trains) {
-    if (stations.length === 0) {
-      routeTrackEl.innerHTML = `<div class="empty-state">路線データを読み込めません</div>`;
-      return;
-    }
-
-    let html = "";
-
-    stations.forEach((st, index) => {
-      const isKitahama = st.code === "K14";
-      const isLast = index === stations.length - 1;
-
-      // この駅に停車中の列車を探す
-      const stoppedTrains = trains.filter(t => t.slotType === "STATION" && t.atStationCode === st.code);
-
-      // 駅ノード
-      html += `
-        <div class="track-node-station ${isKitahama ? 'is-kitahama' : ''}">
-          <div class="station-meta">
-            <span class="st-num-badge">${escapeHtml(st.code)}</span>
-            <div class="st-title-group">
-              <span class="st-name-text">${escapeHtml(st.name)}</span>
-              ${isKitahama ? '<span class="st-kitahama-tag">★ 当駅</span>' : ''}
-            </div>
-          </div>
-          <div class="station-train-slot">
-            ${stoppedTrains.map(t => createTrainBadgeHtml(t)).join("")}
-          </div>
-        </div>
-      `;
-
-      // 駅と駅の間の区間 (3段階スロット: 出発直後 => 走行中 => 停車寸前)
-      if (!isLast) {
-        const nextSt = stations[index + 1];
-
-        // この駅間を走る列車を抽出
-        const betweenTrains = trains.filter(t => {
-          if (t.slotType !== "BETWEEN" || !t.betweenSection) return false;
-          return t.betweenSection.from === st.code && t.betweenSection.to === nextSt.code;
-        });
-
-        const departed = betweenTrains.filter(t => t.subPosition === "DEPARTED");
-        const running = betweenTrains.filter(t => t.subPosition === "RUNNING");
-        const approaching = betweenTrains.filter(t => t.subPosition === "APPROACHING");
-
-        const hasAnyTrain = betweenTrains.length > 0;
-
-        html += `
-          <div class="track-node-between ${hasAnyTrain ? 'has-train' : ''}">
-            <!-- 1. 出発直後 -->
-            <div class="between-step ${departed.length > 0 ? 'has-train' : ''}">
-              <span class="step-label">▼ 出発直後</span>
-              <div class="step-train-slot">
-                ${departed.map(t => createTrainBadgeHtml(t)).join("")}
-              </div>
-            </div>
-
-            <!-- 2. 走行中 -->
-            <div class="between-step ${running.length > 0 ? 'has-train' : ''}">
-              <span class="step-label">▼ 走行中</span>
-              <div class="step-train-slot">
-                ${running.map(t => createTrainBadgeHtml(t)).join("")}
-              </div>
-            </div>
-
-            <!-- 3. 停車寸前 (次駅接近) -->
-            <div class="between-step ${approaching.length > 0 ? 'has-train' : ''}">
-              <span class="step-label">▼ 停車寸前</span>
-              <div class="step-train-slot">
-                ${approaching.map(t => createTrainBadgeHtml(t)).join("")}
-              </div>
-            </div>
-          </div>
-        `;
+  function escapeXml(unsafe) {
+    if (!unsafe) return "";
+    return String(unsafe).replace(/[<>&'"]/g, c => {
+      switch (c) {
+        case '<': return '&lt;';
+        case '>': return '&gt;';
+        case '&': return '&amp;';
+        case '\'': return '&apos;';
+        case '"': return '&quot;';
       }
     });
-
-    routeTrackEl.innerHTML = html;
-
-    // バッジクリックで詳細モーダル表示
-    routeTrackEl.querySelectorAll(".train-illustration-badge").forEach(badge => {
-      badge.addEventListener("click", () => {
-        const vNum = badge.getAttribute("data-vnum");
-        showTrainModal(vNum);
-      });
-    });
   }
 
-  // モーダル表示
-  function showTrainModal(vehicleNumber) {
-    if (!currentData || !currentData.trains) return;
-    const train = currentData.trains.find(t => String(t.vehicleNumber) === String(vehicleNumber));
-    if (!train) return;
+  // 初期化
+  buildInfrastructure();
+  fetchTrainData();
 
-    document.getElementById("modal-title").textContent = `${train.vehicleNumber}号 車両詳細`;
+  // 定期更新（1秒間隔、アニメーションなしでスパッと更新）
+  timerId = setInterval(fetchTrainData, REFRESH_INTERVAL_MS);
 
-    let congestionHtml = "";
-    if (train.congestion && train.congestion.length > 0) {
-      congestionHtml = `
-        <div style="margin-top:10px;">
-          <div class="modal-label" style="margin-bottom:4px;">各号車の混雑度</div>
-          <div class="car-grid">
-            ${train.congestion.map(c => `
-              <div class="car-cell">
-                <div class="car-num">${c.car}号車</div>
-                <div style="color:#d29922; font-weight:bold;">${c.level ? 'Lv.' + c.level : '-'}</div>
-              </div>
-            `).join("")}
-          </div>
-        </div>
-      `;
-    }
-
-    let tempHtml = "";
-    if (train.temperature && train.temperature.length > 0) {
-      tempHtml = `
-        <div style="margin-top:10px;">
-          <div class="modal-label" style="margin-bottom:4px;">各号車の車内温度</div>
-          <div class="car-grid">
-            ${train.temperature.map(c => `
-              <div class="car-cell">
-                <div class="car-num">${c.car}号車</div>
-                <div class="car-temp">${c.temp ? c.temp + '℃' : '-'}</div>
-              </div>
-            `).join("")}
-          </div>
-        </div>
-      `;
-    }
-
-    modalBody.innerHTML = `
-      <div class="modal-row">
-        <span class="modal-label">編成番号</span>
-        <span class="modal-val">${escapeHtml(train.vehicleNumber)}号</span>
-      </div>
-      <div class="modal-row">
-        <span class="modal-label">所属 / 形式</span>
-        <span class="modal-val">${escapeHtml(train.typeInfo.company)} ${escapeHtml(train.typeInfo.series)}</span>
-      </div>
-      <div class="modal-row">
-        <span class="modal-label">行先</span>
-        <span class="modal-val">${escapeHtml(train.destination)} 行</span>
-      </div>
-      <div class="modal-row">
-        <span class="modal-label">現在位置</span>
-        <span class="modal-val">${escapeHtml(train.locationDescription)}</span>
-      </div>
-      <div class="modal-row">
-        <span class="modal-label">北浜駅との関係</span>
-        <span class="modal-val">${escapeHtml(train.distanceLabel || "-")}</span>
-      </div>
-      ${congestionHtml}
-      ${tempHtml}
-    `;
-
-    detailModal.showModal();
-  }
-
-  // 1秒ごとのポーリングタイマー
-  function startPolling() {
-    if (timerId) clearInterval(timerId);
-    timerId = setInterval(fetchTrainData, REFRESH_INTERVAL_MS);
-  }
-
-  // Page Visibility API
+  // バックグラウンド時はタイマー停止で超省エネ
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) {
       if (timerId) clearInterval(timerId);
     } else {
       fetchTrainData();
-      startPolling();
+      if (timerId) clearInterval(timerId);
+      timerId = setInterval(fetchTrainData, REFRESH_INTERVAL_MS);
     }
   });
-
-  function pad(n) {
-    return n < 10 ? "0" + n : n;
-  }
-
-  function escapeHtml(str) {
-    if (!str) return "";
-    return String(str)
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&#039;");
-  }
-
-  // 初回実行
-  fetchTrainData();
-  startPolling();
 })();

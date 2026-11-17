@@ -63,14 +63,13 @@ test("Integration Test: ローカルHTTPサーバーの動作検証", async () =
     const htmlRes = await fetch(`http://localhost:${port}/`);
     assert.equal(htmlRes.status, 200);
     const html = await htmlRes.text();
-    assert.ok(html.includes("北浜駅 列車位置モニター"));
-    assert.ok(html.includes("K14"));
+    assert.ok(html.includes("canvas"));
 
     // 2. GET /style.css
     const cssRes = await fetch(`http://localhost:${port}/style.css`);
     assert.equal(cssRes.status, 200);
     const css = await cssRes.text();
-    assert.ok(css.includes("--line-sakaisuji"));
+    assert.ok(css.includes("canvas") || css.includes("100dvh"));
 
     // 3. GET /app.js
     const jsRes = await fetch(`http://localhost:${port}/app.js`);

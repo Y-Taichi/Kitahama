@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { onRequestGet } from "../functions/api/trains.js";
+import { onRequestGet, onRequestOptions } from "../functions/api/trains.js";
 
 test("Cloudflare Pages Functions: onRequestGet 疎通テスト", async () => {
   const mockContext = {
@@ -17,7 +17,8 @@ test("Cloudflare Pages Functions: onRequestGet 疎通テスト", async () => {
   assert.equal(body.direction, "A");
   assert.equal(body.directionName, "天神橋筋六丁目・阪急線 方面（上り）");
   assert.ok(Array.isArray(body.trains));
-  assert.ok(body.trains.length <= 4, "Should return at most 4 trains");
+  assert.ok(Array.isArray(body.targetTrains));
+  assert.ok(body.targetTrains.length <= 6, "Should return target trains within Kitahama - Nagahoribashi");
   assert.ok(body.updatedAt);
 });
 
@@ -32,4 +33,11 @@ test("Cloudflare Pages Functions: 下り(dir=B) リクエスト", async () => {
   const body = await response.json();
   assert.equal(body.direction, "B");
   assert.equal(body.directionName, "天下茶屋 方面（下り）");
+});
+
+test("Cloudflare Pages Functions: onRequestOptions CORS Preflight", async () => {
+  const response = await onRequestOptions();
+  assert.equal(response.status, 204);
+  assert.equal(response.headers.get("Access-Control-Allow-Origin"), "*");
+  assert.ok(response.headers.get("Access-Control-Allow-Methods").includes("GET"));
 });

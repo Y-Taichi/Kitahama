@@ -1,5 +1,13 @@
-import { processAllSakaisujiTrains, filterAndSortKitahamaTrains } from "../../lib/train-tracker.js";
+import {
+  processAllSakaisujiTrains,
+  filterAndSortKitahamaTrains,
+  TrainStateTracker,
+  filterTargetSectionTrains
+} from "../../lib/train-tracker.js";
 import { SAKAISUJI_ORDERED_STATIONS } from "../../lib/stations.js";
+
+// エッジインスタンスごとの追跡用トラッカー
+const edgeTracker = new TrainStateTracker();
 
 const OSAKA_METRO_API_URL = "https://api.mobility-operation-info.emetro-app.osakametro.co.jp/app/api/v1/trainlocation?route_code=6";
 const OPERATION_INFO_URL = "https://api.mobility-operation-info.emetro-app.osakametro.co.jp/app/api/v1/operationinfo?route_code=6";
@@ -76,6 +84,10 @@ export async function onRequestGet(context) {
       }
     }
 
+    // サーバー側追跡（秒数カウント）
+    const trackedAll = edgeTracker.process(rawList, Date.now());
+    const targetTrains = filterTargetSectionTrains(trackedAll);
+
     // 全列車データを処理（トラック・マップ表示用）
     const allTrains = processAllSakaisujiTrains(rawList, direction);
 
@@ -98,6 +110,8 @@ export async function onRequestGet(context) {
       },
       updatedAt: new Date().toISOString(),
       stations: orderedStations,
+      targetTrains: targetTrains.filter(t => t.direction === direction),
+      allTargetTrains: targetTrains,
       trains: allTrains, // 堺筋線を走行中の全列車
       approachingTrains: approachingTrains.slice(0, 3) // 直近の先発・次発・次々発サマリー
     };
@@ -107,7 +121,8 @@ export async function onRequestGet(context) {
       headers: {
         "Content-Type": "application/json; charset=utf-8",
         "Access-Control-Allow-Origin": "*",
-        "Cache-Control": "public, max-age=1, s-maxage=1"
+        "Cache-Control": "no-cache, no-store, must-revalidate",
+        "Pragma": "no-cache"
       }
     });
   } catch (err) {
@@ -121,9 +136,25 @@ export async function onRequestGet(context) {
         status: 500,
         headers: {
           "Content-Type": "application/json; charset=utf-8",
-          "Access-Control-Allow-Origin": "*"
+          "Access-Control-Allow-Origin": "*",
+          "Cache-Control": "no-cache, no-store, must-revalidate"
         }
       }
     );
   }
+}
+
+/**
+ * CORS Preflight (OPTIONS)
+ */
+export async function onRequestOptions() {
+  return new Response(null, {
+    status: 204,
+    headers: {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, Accept",
+      "Access-Control-Max-Age": "86400"
+    }
+  });
 }
