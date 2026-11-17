@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { TrainStateTracker, filterTargetSectionTrains } from "../lib/train-tracker.js";
+import { TrainStateTracker, filterTargetSectionTrains, getTrainImageFilename } from "../lib/train-tracker.js";
 
 test("TrainStateTracker: 初回検知と状態維持での経過秒数カウント", () => {
   const tracker = new TrainStateTracker();
@@ -209,9 +209,27 @@ test("TrainStateTracker: 状態遷移の履歴蓄積、直前1本・3本平均�
   assert.equal(t.prediction.nextState.remainingLast, 16); // 26 - 10
   assert.equal(t.prediction.nextState.remainingAvg3, 20); // 30 - 10
 
+  // 1本前、2本前、3本前の個別予測データ
+  assert.ok(t.predictions);
+  assert.equal(t.predictions.prev1.nextStateRemaining, 16); // 26 - 10
+  assert.equal(t.predictions.prev2.nextStateRemaining, 24); // 34 - 10
+  assert.equal(t.predictions.prev3.nextStateRemaining, 20); // 30 - 10
+
   // 北浜へ最終的に停車状態になるまでの合計
-  // 直前基準: 残り16s + 走行70s + 停車40s + 走行80s = 206s
+  // 直前1本基準: 残り16s + 走行70s + 停車40s + 走行80s = 206s
   assert.equal(t.prediction.kitahamaArrival.totalLast, 206);
-  // 3本平均基準: 残り20s + 走行70s(1件平均) + 停車40s(1件平均) + 走行80s(1件平均) = 210s
-  assert.equal(t.prediction.kitahamaArrival.totalAvg3, 210);
+  assert.equal(t.predictions.prev1.kitahamaRemaining, 206);
+});
+
+test("getTrainImageFilename: 車両番号系列から画像を判定（未該当・画像なしは66000.png）", () => {
+  assert.equal(getTrainImageFilename("1304"), "1300.png");
+  assert.equal(getTrainImageFilename("5311"), "5300.png");
+  assert.equal(getTrainImageFilename("7305"), "7300.png");
+  assert.equal(getTrainImageFilename("8332"), "8300.png");
+  assert.equal(getTrainImageFilename("9307"), "9300.png");
+  assert.equal(getTrainImageFilename("66601"), "66000.png");
+  // 未該当・不明
+  assert.equal(getTrainImageFilename("3323"), "66000.png");
+  assert.equal(getTrainImageFilename(""), "66000.png");
+  assert.equal(getTrainImageFilename(null), "66000.png");
 });

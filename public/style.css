@@ -1,4 +1,4 @@
-/* アニメーションとトランジションの完全排除（超軽量・省電力） */
+/* アニメーションとトランジションの完全排除（超軽量・高パフォーマンス） */
 *, *::before, *::after {
   box-sizing: border-box;
   margin: 0;
@@ -15,8 +15,8 @@ html, body {
   padding: 0;
   overflow: hidden;
   position: fixed;
-  background-color: #0B0E14;
-  color: #F0F6FC;
+  background-color: #0A0D14;
+  color: #FFFFFF;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
   user-select: none;
   -webkit-user-select: none;
@@ -33,16 +33,17 @@ html, body {
 }
 
 /* =========================================
-   本画面（メインエリア・左側）
+   本画面（左側メインエリア: シンプル＆特大フォント）
 ========================================= */
 #main-screen {
   flex: 1;
   height: 100%;
-  padding: 16px 14px;
+  padding: 24px 20px;
   display: flex;
   flex-direction: column;
   justify-content: center;
   overflow: hidden;
+  background: #0A0D14;
 }
 
 #train-cards-container {
@@ -51,10 +52,9 @@ html, body {
   display: flex;
   flex-direction: column;
   justify-content: space-around;
-  gap: 12px;
 }
 
-/* 空状態（この区間に電車がいない場合） */
+/* 空状態 */
 .empty-state {
   display: flex;
   flex-direction: column;
@@ -66,224 +66,187 @@ html, body {
   gap: 12px;
 }
 .empty-title {
-  font-size: 1.5rem;
-  font-weight: 800;
-  color: #F0F6FC;
+  font-size: 1.8rem;
+  font-weight: 900;
+  color: #FFFFFF;
 }
 .empty-desc {
-  font-size: 1.1rem;
+  font-size: 1.15rem;
   color: #8B949E;
 }
 
-/* 列車カード（先発・主役カード） */
-.primary-train-card {
-  background: #141923;
-  border: 1.5px solid #283347;
-  border-radius: 12px;
-  padding: 16px 14px;
+/* メイン表示ラッパー（シンプル＆大きく） */
+.clean-main-display {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  flex: 1;
-  max-height: 480px;
+  height: 100%;
   justify-content: space-around;
+  padding: 8px 0;
 }
 
-/* 1. 列車の行き先と車番（大きな文字） */
-.train-header-row {
+/* 1. 行先と車番（白字・大きな文字） */
+.dest-and-car-row {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  border-bottom: 1.5px solid #232B3B;
-  padding-bottom: 8px;
+  border-bottom: 2px solid #232B3B;
+  padding-bottom: 12px;
 }
 
-.train-dest-box {
+.dest-text {
+  font-size: 2.3rem; /* 大きな文字 */
+  font-weight: 900;
+  color: #FFFFFF; /* 白字 */
+  letter-spacing: 0.02em;
+}
+
+.car-number-text {
+  font-size: 2.3rem; /* 大きな文字 */
+  font-weight: 900;
+  color: #FFFFFF; /* 白字 */
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.05em;
+}
+
+/* 2. 予告セクション（到着予想 ＆ 次の状態まで） */
+.forecast-section {
   display: flex;
-  align-items: baseline;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.forecast-header {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #94A3B8;
+  letter-spacing: 0.04em;
+  display: flex;
+  align-items: center;
   gap: 6px;
 }
 
-.train-dest-name {
-  font-size: 1.85rem; /* 大きな文字 */
-  font-weight: 900;
-  color: #FBBF24; /* 鮮やかなイエロー */
-  letter-spacing: 0.03em;
-}
-
-.train-dest-suffix {
-  font-size: 1.1rem;
-  font-weight: 700;
-  color: #FBBF24;
-}
-
-.train-car-number {
-  font-size: 1.35rem; /* 大きな文字 */
-  font-weight: 800;
-  color: #F0F6FC;
-  background: #1F2736;
-  padding: 3px 10px;
-  border-radius: 6px;
-  border: 1px solid #334155;
-}
-
-.train-model-tag {
-  font-size: 0.85rem;
-  font-weight: 700;
-  padding: 2px 8px;
-  border-radius: 4px;
-  margin-top: 2px;
+.forecast-header::before {
+  content: "";
   display: inline-block;
-  align-self: flex-start;
-}
-.model-metro {
-  background: rgba(129, 71, 44, 0.3);
-  color: #F6AD55;
-  border: 1px solid #81472C;
-}
-.model-hankyu {
-  background: rgba(92, 6, 31, 0.4);
-  color: #F687B3;
-  border: 1px solid #700826;
+  width: 4px;
+  height: 16px;
+  border-radius: 2px;
 }
 
-/* 2. 最後のアクティビティ（71秒前に長堀橋出発、10秒前に堺筋本町停車など） */
-.activity-box {
-  background: #1A2230;
-  border-left: 4px solid #38BDF8;
-  padding: 10px 12px;
-  border-radius: 6px;
+.header-arrival::before {
+  background: #34D399; /* エメラルドグリーン */
 }
 
-.activity-text {
-  font-size: 1.25rem; /* 大きな文字 */
-  font-weight: 800;
-  color: #E2E8F0;
-  line-height: 1.3;
+.header-next::before {
+  background: #38BDF8; /* シアン */
 }
 
-/* 3. 北浜駅到達カウントダウン（一際大きなフォント） */
-.arrival-countdown-box {
-  background: #0E141F;
-  border: 1.5px solid #233147;
-  border-radius: 10px;
-  padding: 12px 14px;
+/* 3本（1本前、2本前、3本前）のグリッド表示 */
+.history-3grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 10px;
+  width: 100%;
+}
+
+.history-card {
+  background: #121722;
+  border: 1.5px solid #20293A;
+  border-radius: 8px;
+  padding: 12px 6px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-}
-
-.arrival-target-label {
-  font-size: 0.95rem;
-  font-weight: 700;
-  color: #94A3B8;
-  letter-spacing: 0.05em;
-}
-
-/* 一際大きなフォント（あと ○○ 秒） */
-.giant-countdown {
-  display: flex;
-  align-items: baseline;
-  gap: 4px;
-  color: #F0F6FC;
-}
-
-.countdown-prefix {
-  font-size: 1.35rem;
-  font-weight: 800;
-  color: #94A3B8;
-}
-
-.giant-seconds {
-  font-size: 3.8rem; /* 一際大きな特大フォント（約60px） */
-  font-weight: 900;
-  color: #34D399; /* エメラルドグリーン */
-  line-height: 1;
-  letter-spacing: -0.02em;
-  font-variant-numeric: tabular-nums;
-}
-
-.countdown-unit {
-  font-size: 1.5rem;
-  font-weight: 800;
-  color: #34D399;
-}
-
-/* 到着済みの表示 */
-.giant-arrived {
-  font-size: 2.1rem;
-  font-weight: 900;
-  color: #FBBF24;
-  line-height: 1.2;
   text-align: center;
 }
 
-/* 直前1本と3本平均の比較表示 */
-.prediction-comparison-row {
-  display: flex;
-  justify-content: space-around;
-  width: 100%;
-  margin-top: 6px;
-  padding-top: 6px;
-  border-top: 1px solid #1E2838;
-}
-
-.comparison-item {
+.history-label {
   font-size: 0.95rem;
-  color: #CBD5E1;
-  display: flex;
-  gap: 4px;
-  align-items: center;
-}
-
-.comp-badge {
-  font-size: 0.75rem;
-  font-weight: 700;
-  padding: 1px 5px;
-  border-radius: 3px;
-  background: #253147;
+  font-weight: 800;
   color: #94A3B8;
+  margin-bottom: 4px;
 }
 
-.comp-num {
+/* 到着予想の数字（特大フォント） */
+.arrival-giant-num {
+  font-size: 2.4rem; /* 大きく */
+  font-weight: 900;
+  color: #34D399; /* エメラルドグリーン */
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.arrival-unit {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #34D399;
+  margin-left: 2px;
+}
+
+/* 次の状態までの数字 */
+.next-sub-num {
+  font-size: 1.85rem; /* 大きく */
+  font-weight: 900;
+  color: #38BDF8; /* シアン */
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.next-unit {
+  font-size: 0.95rem;
   font-weight: 800;
   color: #38BDF8;
+  margin-left: 2px;
 }
 
-/* 2本目の列車（次発）がある場合のセカンダリカード */
-.secondary-train-card {
-  background: #10151E;
-  border: 1px solid #21293A;
-  border-radius: 8px;
-  padding: 8px 12px;
+/* 北浜到着済みの表示 */
+.arrived-banner {
+  background: #16202E;
+  border: 2px solid #34D399;
+  border-radius: 12px;
+  padding: 24px 16px;
+  text-align: center;
+  color: #34D399;
+  font-size: 2.1rem;
+  font-weight: 900;
+}
+.arrived-sub {
+  font-size: 1.25rem;
+  color: #94A3B8;
+  margin-top: 6px;
+}
+
+/* 2本目（次発）がある場合のシンプル表示 */
+.secondary-summary-row {
+  border-top: 1.5px solid #1E2636;
+  padding-top: 10px;
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  font-size: 1.05rem;
-}
-
-.secondary-title {
+  align-items: baseline;
+  color: #94A3B8;
+  font-size: 1.2rem;
   font-weight: 800;
-  color: #CBD5E1;
 }
 
-.secondary-activity {
-  font-weight: 700;
+.secondary-summary-row strong {
+  color: #FFFFFF;
+}
+
+.secondary-sec {
   color: #38BDF8;
-  font-size: 1rem;
+  font-size: 1.25rem;
 }
 
 /* =========================================
-   画面右端のバー（常時 長堀橋 -> 堺筋本町 -> 北浜）
+   画面右端のバー（上から長堀橋 -> 堺筋本町 -> 北浜）
 ========================================= */
 #right-bar {
-  width: 90px;
+  width: 92px;
   height: 100%;
   height: 100dvh;
-  background: #11151E;
-  border-left: 2px solid #232B3B;
+  background: #0E121A;
+  border-left: 2px solid #202736;
   position: relative;
   display: flex;
   flex-direction: column;
@@ -292,16 +255,16 @@ html, body {
   flex-shrink: 0;
 }
 
-/* 縦のレール線（中央を貫通） */
+/* 縦のレール線 */
 .track-line {
   position: absolute;
   top: 0;
   bottom: 0;
   left: 50%;
   transform: translateX(-50%);
-  width: 12px;
-  border-left: 3px solid #334155;
-  border-right: 3px solid #334155;
+  width: 14px;
+  border-left: 3px solid #2A3447;
+  border-right: 3px solid #2A3447;
   background: transparent;
   pointer-events: none;
   z-index: 1;
@@ -311,7 +274,7 @@ html, body {
 .bar-slot {
   position: relative;
   width: 100%;
-  height: 58px;
+  height: 56px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -319,21 +282,21 @@ html, body {
   z-index: 2;
 }
 
-/* 駅マーク */
+/* 駅マーク（北浜も長堀橋・堺筋本町と同一スタイル！） */
 .station-mark {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 2px;
-  background: #11151E;
+  background: #0E121A;
   padding: 2px 4px;
   border-radius: 4px;
 }
 
 .station-badge {
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 900;
-  background: #81472C;
+  background: #81472C; /* 堺筋線ブラウン（全駅統一） */
   color: #FFFFFF;
   padding: 1px 6px;
   border-radius: 10px;
@@ -342,22 +305,10 @@ html, body {
 }
 
 .station-name-label {
-  font-size: 0.8rem;
+  font-size: 0.82rem;
   font-weight: 800;
-  color: #CBD5E1;
+  color: #E2E8F0;
   letter-spacing: -0.02em;
-}
-
-/* 北浜（当駅・一番下）のハイライト */
-.kitahama-badge {
-  background: #D97706;
-  border-color: #FBBF24;
-  box-shadow: 0 0 6px rgba(245, 158, 11, 0.6);
-}
-
-.kitahama-name {
-  color: #FBBF24;
-  font-weight: 900;
 }
 
 /* 電車アンカー（列車が配置されるスロット） */
@@ -366,7 +317,7 @@ html, body {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: 76px;
+  width: 78px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -382,13 +333,13 @@ html, body {
   background: rgba(14, 20, 31, 0.95);
   border: 1.5px solid #38BDF8;
   border-radius: 6px;
-  padding: 3px 5px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+  padding: 2px 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.7);
 }
 
 /* 電車の真上に表示される秒数（今の今までこの状態は何秒間続けられていたか） */
 .bar-train-seconds {
-  font-size: 0.82rem;
+  font-size: 0.88rem;
   font-weight: 900;
   color: #38BDF8;
   background: #0B0E14;
@@ -398,11 +349,14 @@ html, body {
   white-space: nowrap;
   letter-spacing: -0.02em;
   border: 1px solid #1E293B;
+  font-variant-numeric: tabular-nums;
 }
 
-/* 公式電車SVG画像 */
-.bar-train-svg {
-  width: 28px;
-  height: 35px;
+/* 電車画像（images 配下のPNG画像） */
+.bar-train-img {
+  width: 38px;
+  height: auto;
+  max-height: 38px;
+  object-fit: contain;
   display: block;
 }

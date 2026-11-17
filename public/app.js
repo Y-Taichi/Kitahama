@@ -1,5 +1,4 @@
 (() => {
-  const REFRESH_INTERVAL_MS = 1000;
   const trainCardsContainer = document.getElementById("train-cards-container");
 
   // スロットアンカー要素（右端バーの5つの位置）
@@ -11,58 +10,47 @@
     "STOPPED:K14": document.getElementById("anchor-K14")
   };
 
+  let activeTrains = [];
   let isFetching = false;
-  let timerId = null;
-  let lastFetchedData = [];
-  let fetchTimestamp = Date.now();
 
-  // 公式電車SVGのパス決定（Osaka Metro 66系 vs 阪急1300系 等）
-  function getOfficialTrainSvgUrl(train) {
-    const isHankyu = train.typeInfo && train.typeInfo.isHankyu;
-    if (isHankyu) {
-      return "/icons/train_6_13.svg";
-    }
-    const vNum = String(train.vehicleNumber || "");
-    if (vNum.startsWith("66")) {
-      return "/icons/train_6_66.svg";
-    }
-    return "/icons/train_K.svg";
+  // 車両番号から images 配下の画像パスを決定
+  // 何も当てはまらない、画像がない場合は 66000.png
+  function getTrainImageUrl(vehicleNumber) {
+    const v = String(vehicleNumber || "").trim();
+    if (v.startsWith("13")) return "/images/1300.png";
+    if (v.startsWith("53")) return "/images/5300.png";
+    if (v.startsWith("73")) return "/images/7300.png";
+    if (v.startsWith("83")) return "/images/8300.png";
+    if (v.startsWith("93")) return "/images/9300.png";
+    if (v.startsWith("66")) return "/images/66000.png";
+    return "/images/66000.png";
   }
 
-  // 最後のアクティビティ文言（例: 71秒前に長堀橋出発、10秒前に堺筋本町停車）
-  function formatActivityText(train, liveElapsed) {
-    const sec = Math.max(0, liveElapsed);
-    if (train.status === "STOPPED") {
-      let stName = train.fromStation || "当駅";
-      if (train.fromStationCode === "K16") stName = "長堀橋";
-      if (train.fromStationCode === "K15") stName = "堺筋本町";
-      if (train.fromStationCode === "K14") stName = "北浜";
-      return `${sec}秒前に${stName}停車`;
-    }
-    if (train.status === "RUNNING") {
-      let depName = "駅";
-      if (train.fromStationCode === "K16") depName = "長堀橋";
-      if (train.fromStationCode === "K15") depName = "堺筋本町";
-      return `${sec}秒前に${depName}出発`;
-    }
-    return `${sec}秒前`;
+  // 行先フォーマット（「行」をつける。例: 北千里行）
+  function formatDestination(dest) {
+    if (!dest) return "天神橋筋六丁目行";
+    const str = String(dest).trim();
+    if (str.endsWith("行")) return str;
+    return str + "行";
+  }
+
+  // 車番フォーマット（「号」を付けず、数字のみ。例: 7305）
+  function formatVehicleNumber(vNum) {
+    if (!vNum) return "";
+    return String(vNum).replace(/[^0-9A-Za-z]/g, "");
   }
 
   // 画面全体のレンダリング
-  function renderAll(trains) {
-    // 天神橋筋六丁目に向かう電車（上り: A）のみを抽出（天下茶屋行きは除外）
-    const upTrains = trains.filter(t => t.direction === "A");
+  function render() {
+    const now = Date.now();
 
     // 1. 右端のバーのアンカーをクリア
     Object.values(anchors).forEach(el => {
       if (el) el.innerHTML = "";
     });
 
-    const now = Date.now();
-    const ageSec = Math.floor((now - fetchTimestamp) / 1000);
-
-    // 2. 右端のバーに電車アイコンをプロット
-    upTrains.forEach(t => {
+    // 2. 右端のバーに電車アイコンと経過秒数をプロット
+    activeTrains.forEach(t => {
       let key = "";
       if (t.status === "STOPPED") {
         key = `STOPPED:${t.fromStationCode}`;
@@ -73,21 +61,22 @@
       const anchor = anchors[key];
       if (!anchor) return;
 
-      const liveElapsed = (t.elapsedSeconds || 0) + ageSec;
-      const svgUrl = getOfficialTrainSvgUrl(t);
+      // 絶対時刻 (since) からの正確な経過秒数
+      const liveElapsed = Math.max(0, Math.floor((now - t.stateSince) / 1000));
+      const imgUrl = getTrainImageUrl(t.vehicleNumber);
 
       anchor.innerHTML = `
         <div class="bar-train-unit">
           <!-- 電車の真上に秒数（今の今までこの状態は何秒間続けられていたか） -->
           <div class="bar-train-seconds">${liveElapsed}秒</div>
-          <!-- 公式ベクター電車画像 -->
-          <img src="${svgUrl}" class="bar-train-svg" alt="train" />
+          <!-- 車番系列に沿った電車画像（未該当は66000.png） -->
+          <img src="${imgUrl}" class="bar-train-img" alt="${t.vehicleNumber}" />
         </div>
       `;
     });
 
-    // 3. 本画面（メイン画面エリア）のレンダリング
-    if (upTrains.length === 0) {
+    // 3. 左側本画面の描画
+    if (activeTrains.length === 0) {
       trainCardsContainer.innerHTML = `
         <div class="empty-state">
           <div class="empty-title">天神橋筋六丁目 方面</div>
@@ -97,7 +86,128 @@
       return;
     }
 
-    // 北浜に近い順にソート（北浜停車中 -> 堺筋本町〜北浜間 -> 堺筋本町停車中 -> 長堀橋〜堺筋本町間 -> 長堀橋停車中）
+    // 先発列車（最も北浜に近いメイン列車）
+    const primaryTrain = activeTrains[0];
+    const liveElapsed = Math.max(0, Math.floor((now - primaryTrain.stateSince) / 1000));
+
+    // 行先と車番（白字、数字のみ）
+    const destText = formatDestination(primaryTrain.destination);
+    const carNoText = formatVehicleNumber(primaryTrain.vehicleNumber);
+
+    const isAtKitahama = primaryTrain.fromStationCode === "K14" && primaryTrain.status === "STOPPED";
+
+    let forecastHtml = "";
+
+    if (isAtKitahama) {
+      forecastHtml = `
+        <div class="arrived-banner">
+          北浜 到着済
+          <div class="arrived-sub">(当駅停車中)</div>
+        </div>
+      `;
+    } else {
+      // 1本前、2本前、3本前の北浜駅への合計到着予想時間と次の状態になるのに必要な予想時間
+      const preds = primaryTrain.predictions || {};
+      const p1 = preds.prev1 || { kitahamaRemaining: 55, nextStateRemaining: 25 };
+      const p2 = preds.prev2 || { kitahamaRemaining: 60, nextStateRemaining: 28 };
+      const p3 = preds.prev3 || { kitahamaRemaining: 58, nextStateRemaining: 26 };
+
+      // クライアント側で elapsed の進みに合わせてリアルタイムにカウントダウン
+      // 基準時からの差分秒
+      const diffSec = liveElapsed - (primaryTrain.baseElapsed || 0);
+
+      const remArr1 = Math.max(0, (p1.kitahamaRemaining != null ? p1.kitahamaRemaining : 55) - diffSec);
+      const remArr2 = Math.max(0, (p2.kitahamaRemaining != null ? p2.kitahamaRemaining : 60) - diffSec);
+      const remArr3 = Math.max(0, (p3.kitahamaRemaining != null ? p3.kitahamaRemaining : 58) - diffSec);
+
+      const remNext1 = Math.max(0, (p1.nextStateRemaining != null ? p1.nextStateRemaining : 25) - diffSec);
+      const remNext2 = Math.max(0, (p2.nextStateRemaining != null ? p2.nextStateRemaining : 28) - diffSec);
+      const remNext3 = Math.max(0, (p3.nextStateRemaining != null ? p3.nextStateRemaining : 26) - diffSec);
+
+      forecastHtml = `
+        <!-- 予告: 北浜駅 到着予想（1本前、2本前、3本前） -->
+        <div class="forecast-section">
+          <div class="forecast-header header-arrival">北浜駅 到着予想</div>
+          <div class="history-3grid">
+            <div class="history-card">
+              <span class="history-label">1本前</span>
+              <div><span class="arrival-giant-num">${remArr1}</span><span class="arrival-unit">秒</span></div>
+            </div>
+            <div class="history-card">
+              <span class="history-label">2本前</span>
+              <div><span class="arrival-giant-num">${remArr2}</span><span class="arrival-unit">秒</span></div>
+            </div>
+            <div class="history-card">
+              <span class="history-label">3本前</span>
+              <div><span class="arrival-giant-num">${remArr3}</span><span class="arrival-unit">秒</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 予告: 次の状態まで（1本前、2本前、3本前） -->
+        <div class="forecast-section">
+          <div class="forecast-header header-next">次の状態まで</div>
+          <div class="history-3grid">
+            <div class="history-card">
+              <span class="history-label">1本前</span>
+              <div><span class="next-sub-num">${remNext1}</span><span class="next-unit">秒</span></div>
+            </div>
+            <div class="history-card">
+              <span class="history-label">2本前</span>
+              <div><span class="next-sub-num">${remNext2}</span><span class="next-unit">秒</span></div>
+            </div>
+            <div class="history-card">
+              <span class="history-label">3本前</span>
+              <div><span class="next-sub-num">${remNext3}</span><span class="next-unit">秒</span></div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // 2本目（次発列車）がある場合のシンプルな要約表示
+    let secondaryHtml = "";
+    if (activeTrains.length > 1) {
+      const secTrain = activeTrains[1];
+      const secDest = formatDestination(secTrain.destination);
+      const secCar = formatVehicleNumber(secTrain.vehicleNumber);
+      const secPreds = secTrain.predictions || {};
+      const secP1 = secPreds.prev1 || { kitahamaRemaining: 110 };
+      const secDiff = Math.max(0, Math.floor((now - secTrain.stateSince) / 1000) - (secTrain.baseElapsed || 0));
+      const secRem = Math.max(0, (secP1.kitahamaRemaining != null ? secP1.kitahamaRemaining : 110) - secDiff);
+
+      secondaryHtml = `
+        <div class="secondary-summary-row">
+          <span>次発: <strong>${escapeHtml(secDest)}</strong> ${escapeHtml(secCar)}</span>
+          <span>北浜まで あと <strong class="secondary-sec">${secRem}秒</strong></span>
+        </div>
+      `;
+    }
+
+    trainCardsContainer.innerHTML = `
+      <div class="clean-main-display">
+        <!-- 行先と車番（白字・大きな文字） -->
+        <div class="dest-and-car-row">
+          <span class="dest-text">${escapeHtml(destText)}</span>
+          <span class="car-number-text">${escapeHtml(carNoText)}</span>
+        </div>
+
+        <!-- その下の予告（到着予想 ＆ 次の状態まで） -->
+        ${forecastHtml}
+
+        <!-- 次発列車（存在する場合） -->
+        ${secondaryHtml}
+      </div>
+    `;
+  }
+
+  // サーバーデータのマージ
+  function updateData(trains) {
+    const now = Date.now();
+    // 天神橋筋六丁目に向かう電車（上り: A）のみ
+    const upTrains = (trains || []).filter(t => t.direction === "A");
+
+    // 北浜に近い順にソート
     const priorityOrder = {
       "STOPPED:K14": 1,
       "RUNNING:K15->K14": 2,
@@ -112,115 +222,23 @@
       return (priorityOrder[keyA] || 99) - (priorityOrder[keyB] || 99);
     });
 
-    // 先発列車（最も北浜に近いメイン列車）
-    const primaryTrain = upTrains[0];
-    const liveElapsedPrimary = (primaryTrain.elapsedSeconds || 0) + ageSec;
-    const activityTextPrimary = formatActivityText(primaryTrain, liveElapsedPrimary);
+    activeTrains = upTrains.map(t => {
+      const serverElapsed = t.elapsedSeconds || 0;
+      // サーバー側の since があれば使用、なければ現在時刻から逆算
+      const stateSince = t.since || (now - serverElapsed * 1000);
 
-    // 北浜駅到達予測（ライブ計算）
-    const arrPred = (primaryTrain.prediction && primaryTrain.prediction.kitahamaArrival) || {};
-    const isAtKitahama = arrPred.isAtKitahama || primaryTrain.fromStationCode === "K14";
+      return {
+        ...t,
+        stateSince,
+        baseElapsed: serverElapsed,
+        fetchedAt: now
+      };
+    });
 
-    let countdownHtml = "";
-    if (isAtKitahama) {
-      countdownHtml = `
-        <div class="arrival-countdown-box">
-          <div class="giant-arrived">北浜駅 到着済<br><span style="font-size:1.2rem; color:#A0AEC0;">(当駅停車中)</span></div>
-        </div>
-      `;
-    } else {
-      // 1本前の実績ペースと3本平均ペースでの残り到達秒数をライブ計算
-      const totalLastBase = arrPred.totalLast != null ? arrPred.totalLast : 60;
-      const totalAvg3Base = arrPred.totalAvg3 != null ? arrPred.totalAvg3 : 60;
-
-      // リアルタイムにカウントダウン
-      const remLast = Math.max(0, totalLastBase - ageSec);
-      const remAvg3 = Math.max(0, totalAvg3Base - ageSec);
-
-      countdownHtml = `
-        <div class="arrival-countdown-box">
-          <div class="arrival-target-label">北浜駅 到達まで</div>
-          <!-- 一際大きなフォントで表示 -->
-          <div class="giant-countdown">
-            <span class="countdown-prefix">あと</span>
-            <span class="giant-seconds">${remAvg3}</span>
-            <span class="countdown-unit">秒</span>
-          </div>
-          <!-- 直前1本ペースと3本平均ペースの比較 -->
-          <div class="prediction-comparison-row">
-            <div class="comparison-item">
-              <span class="comp-badge">3本平均</span>
-              <span>あと <strong class="comp-num">${remAvg3}</strong> 秒</span>
-            </div>
-            <div class="comparison-item">
-              <span class="comp-badge">直前1本</span>
-              <span>あと <strong class="comp-num">${remLast}</strong> 秒</span>
-            </div>
-          </div>
-        </div>
-      `;
-    }
-
-    const isHankyu = primaryTrain.typeInfo && primaryTrain.typeInfo.isHankyu;
-    const modelTagClass = isHankyu ? "model-hankyu" : "model-metro";
-    const modelTagName = isHankyu ? "阪急電鉄 直通車" : "Osaka Metro 66系";
-
-    let primaryCardHtml = `
-      <div class="primary-train-card">
-        <!-- 1. 行き先と車番（大きな文字） -->
-        <div>
-          <div class="train-header-row">
-            <div class="train-dest-box">
-              <span class="train-dest-name">${escapeHtml(primaryTrain.destination || "天神橋筋六丁目")}</span>
-              <span class="train-dest-suffix">行</span>
-            </div>
-            <span class="train-car-number">${escapeHtml(primaryTrain.vehicleNumber || "")}号</span>
-          </div>
-          <span class="train-model-tag ${modelTagClass}">${modelTagName}</span>
-        </div>
-
-        <!-- 2. 最後のアクティビティ（大きな文字） -->
-        <div class="activity-box">
-          <div class="activity-text">${escapeHtml(activityTextPrimary)}</div>
-        </div>
-
-        <!-- 3. 北浜駅到達カウントダウン（一際大きな特大フォント） -->
-        ${countdownHtml}
-      </div>
-    `;
-
-    // 2本目（次発列車）がある場合のコンパクト表示
-    let secondaryHtml = "";
-    if (upTrains.length > 1) {
-      const secTrain = upTrains[1];
-      const liveElapsedSec = (secTrain.elapsedSeconds || 0) + ageSec;
-      const activityTextSec = formatActivityText(secTrain, liveElapsedSec);
-      const arrPredSec = (secTrain.prediction && secTrain.prediction.kitahamaArrival) || {};
-      const remAvg3Sec = Math.max(0, (arrPredSec.totalAvg3 || 120) - ageSec);
-
-      secondaryHtml = `
-        <div class="secondary-train-card">
-          <div class="secondary-title">
-            <span>次発: ${escapeHtml(secTrain.destination || "")}行 (${escapeHtml(secTrain.vehicleNumber || "")}号)</span>
-          </div>
-          <div class="secondary-activity">
-            ${escapeHtml(activityTextSec)} (あと${remAvg3Sec}秒)
-          </div>
-        </div>
-      `;
-    }
-
-    trainCardsContainer.innerHTML = primaryCardHtml + secondaryHtml;
+    render();
   }
 
-  // 1秒ごとのUIライブ更新（カウントダウン・カウントアップをスムーズに描画）
-  function tickLive() {
-    if (lastFetchedData.length > 0) {
-      renderAll(lastFetchedData);
-    }
-  }
-
-  // データフェッチ
+  // 定期フェッチ
   async function fetchTrainData() {
     if (isFetching) return;
     isFetching = true;
@@ -232,9 +250,8 @@
       if (!res.ok) return;
 
       const data = await res.json();
-      lastFetchedData = data.targetTrains || data.allTargetTrains || [];
-      fetchTimestamp = Date.now();
-      renderAll(lastFetchedData);
+      const targetTrains = data.targetTrains || data.allTargetTrains || [];
+      updateData(targetTrains);
     } catch (err) {
       // ignore
     } finally {
@@ -252,24 +269,21 @@
       .replace(/'/g, "&#039;");
   }
 
-  // 初期化と定期実行
+  // 初回フェッチ
   fetchTrainData();
-  timerId = setInterval(() => {
-    fetchTrainData();
-    tickLive();
-  }, REFRESH_INTERVAL_MS);
 
-  // バックグラウンド時はタイマー停止で省エネ
+  // 1.5秒ごとにサーバーと同期フェッチ
+  setInterval(fetchTrainData, 1500);
+
+  // 200msごとに高頻度で正確にカウントダウン/カウントアップを滑らかに描画
+  // （秒数が変わった瞬間にパッとスムーズに更新、巻き戻り・もっさり感ゼロ）
+  setInterval(render, 200);
+
+  // バックグラウンド復帰時の即時同期
   document.addEventListener("visibilitychange", () => {
-    if (document.hidden) {
-      if (timerId) clearInterval(timerId);
-    } else {
+    if (!document.hidden) {
       fetchTrainData();
-      if (timerId) clearInterval(timerId);
-      timerId = setInterval(() => {
-        fetchTrainData();
-        tickLive();
-      }, REFRESH_INTERVAL_MS);
+      render();
     }
   });
 })();

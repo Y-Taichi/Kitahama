@@ -23,7 +23,8 @@ const MIME_TYPES = {
   ".css": "text/css; charset=utf-8",
   ".js": "application/javascript; charset=utf-8",
   ".json": "application/json; charset=utf-8",
-  ".svg": "image/svg+xml"
+  ".svg": "image/svg+xml",
+  ".png": "image/png"
 };
 
 // サーバー側で走行中・停車中の経過秒数を常時追跡するトラッカー
@@ -136,10 +137,19 @@ const server = http.createServer(async (req, res) => {
   }
 
   // 静的ファイル配信 (public ディレクトリ)
-  let filePath = path.join(__dirname, "public", reqUrl.pathname === "/" ? "index.html" : reqUrl.pathname);
+  const relPath = reqUrl.pathname === "/" ? "index.html" : reqUrl.pathname.replace(/^\/+/, "");
+  let filePath = path.join(__dirname, "public", relPath);
   const ext = path.extname(filePath);
 
-  if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
+  if (!fs.existsSync(filePath)) {
+    // images 直下フォールバック
+    const fallbackPath = path.join(__dirname, relPath);
+    if (fs.existsSync(fallbackPath) && !fs.statSync(fallbackPath).isDirectory()) {
+      filePath = fallbackPath;
+    } else {
+      filePath = path.join(__dirname, "public", "index.html");
+    }
+  } else if (fs.statSync(filePath).isDirectory()) {
     filePath = path.join(__dirname, "public", "index.html");
   }
 
